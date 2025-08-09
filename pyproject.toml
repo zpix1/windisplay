@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "windisplay"
-version = "0.1.9"
+version = "0.1.10"
 description = "Windows tray app to switch display resolutions across multiple monitors."
 requires-python = ">=3.8"
 dependencies = [
