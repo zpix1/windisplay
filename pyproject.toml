@@ -11,10 +11,14 @@ dependencies = [
   "pystray",
   "Pillow",
   "pywin32",
+  "pyinstaller>=6.15.0",
 ]
 
 [project.scripts]
 windisplay = "windisplay.win_display:main"
+
+[tool.setuptools]
+packages = ["windisplay"]
 
 [tool.uv]
 dev-dependencies = []

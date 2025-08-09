@@ -1,6 +1,4 @@
-from .win_display import main
+from windisplay.win_display import main
 
 if __name__ == "__main__":
     main()
-
-

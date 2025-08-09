@@ -25,9 +25,8 @@ jobs:
 
       - name: Build executable with PyInstaller
         run: |
-          uv run pip install pyinstaller
-          uv run pyinstaller --noconsole --name WinDisplay --onefile --icon NONE -m windisplay
-        shell: bash
+          uv add pyinstaller
+          uv run pyinstaller --noconsole --name WinDisplay --onefile windisplay/__main__.py
 
       - name: Upload artifact exe
         uses: actions/upload-artifact@v4
