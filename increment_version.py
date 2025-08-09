@@ -68,7 +68,7 @@ def write_version_to_inno_setup(new_version: str) -> None:
     # Update the default define so local builds get a proper version when /DMyAppVersion is not passed
     text = re.sub(
         r"^(#define\s+MyAppVersion\s+)\"[^\"]*\"\s*$",
-        rf"\1\"{new_version}\"",
+        rf'\1"{new_version}"',
         text,
         flags=re.M,
     )
@@ -124,6 +124,7 @@ def main() -> int:
             "git",
             "add",
             "pyproject.toml",
+            "uv.lock",
             "windisplay/__init__.py",
             "installer/windisplay.iss",
         ]
