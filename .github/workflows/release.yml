@@ -1,0 +1,66 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Sync deps
+        run: uv sync
+
+      - name: Build executable with PyInstaller
+        run: |
+          uv run pip install pyinstaller
+          uv run pyinstaller --noconsole --name WinDisplay --onefile --icon NONE -m windisplay
+        shell: bash
+
+      - name: Upload artifact exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinDisplay-exe
+          path: dist/WinDisplay.exe
+
+      - name: Install Inno Setup
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.0
+
+      - name: Build installer
+        run: iscc installer\windisplay.iss /DMyAppVersion=${{ github.ref_name }}
+
+      - name: Upload artifact installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: WinDisplay-installer
+          path: Output/*Setup*.exe
+
+  release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/WinDisplay-exe/WinDisplay.exe
+            dist/WinDisplay-installer/*Setup*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 import os
 import logging
 import tempfile
+import ctypes
 
 import win32api
 import win32con
@@ -178,6 +179,21 @@ class WinDisplayTray:
         # Preferred refresh rate per monitor (Hz). Defaults to current at startup
         self._preferred_freq: Dict[str, int] = {}
 
+    def _show_about(self, icon: Optional[pystray.Icon] = None, item: Optional[pystray.MenuItem] = None) -> None:
+        try:
+            from . import __version__
+        except Exception:
+            __version__ = "unknown"
+        text = (
+            f"WinDisplay {__version__}\n\n"
+            "Simple Windows tray app to switch monitor resolutions and refresh rates.\n\n"
+            "GitHub: https://github.com/yourname/res-switch"
+        )
+        try:
+            ctypes.windll.user32.MessageBoxW(0, text, "WinDisplay", 0x40)  # MB_ICONINFORMATION
+        except Exception:
+            logging.info(text)
+
     def _build_menu(self) -> pystray.Menu:
         try:
             monitors = _enumerate_monitors()
@@ -345,6 +361,7 @@ class WinDisplayTray:
             actions = [
                 *monitor_items,
                 pystray.Menu.SEPARATOR,
+                pystray.MenuItem("About", self._show_about),
                 pystray.MenuItem("Refresh", self.refresh),
                 pystray.MenuItem("Exit", self.stop),
             ]
