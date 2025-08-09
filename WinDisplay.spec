@@ -5,7 +5,7 @@ a = Analysis(
     ['windisplay\\__main__.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('windisplay/assets/app.ico', 'windisplay/assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,4 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='windisplay/assets/app.ico',
 )

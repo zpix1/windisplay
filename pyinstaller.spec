@@ -6,7 +6,7 @@ a = Analysis([
 ],
              pathex=[],
              binaries=[],
-             datas=[],
+             datas=[('windisplay/assets/app.ico', 'windisplay/assets')],
              hiddenimports=[],
              hookspath=[],
              hooksconfig={},
@@ -31,7 +31,8 @@ exe = EXE(pyz,
           disable_windowed_traceback=False,
           target_arch=None,
           codesign_identity=None,
-          entitlements_file=None )
+          entitlements_file=None,
+          icon='windisplay/assets/app.ico')
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,
