@@ -11,7 +11,7 @@ import webbrowser
 
 import win32api
 import win32con
-from PIL import Image, ImageDraw
+from PIL import Image
 import importlib.resources as resources
 
 os.environ.setdefault("PYSTRAY_BACKEND", "win32")
@@ -170,107 +170,6 @@ def _apply_mode(device_name: str, mode: DisplayMode) -> bool:
     return ok
 
 
-def _create_tray_image() -> Image.Image:
-    """Create a crisp, modern tray icon.
-
-    Draw at 128x128 then downscale to 64x64 for anti-aliased edges.
-    The icon is a monitor silhouette with subtle shading and a swap motif.
-    """
-    target_size = 64
-    scale = 2  # 128 → 64 downscale
-    size = target_size * scale
-
-    # Colors tuned for visibility in both light/dark trays
-    bezel_color = (30, 31, 33, 255)
-    screen_fill = (40, 120, 230, 255)  # blue screen content
-    screen_highlight = (255, 255, 255, 38)
-    outline_soft = (255, 255, 255, 80)
-    metal = (64, 66, 68, 255)
-    shadow = (0, 0, 0, 70)
-    glyph = (255, 255, 255, 235)
-
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-
-    # Helper for rounded rectangle across Pillow versions
-    def rounded_rect(box, radius, fill=None, outline=None, width=1):
-        if hasattr(draw, "rounded_rectangle"):
-            draw.rounded_rectangle(
-                box, radius=radius, fill=fill, outline=outline, width=width
-            )
-        else:
-            # Fallback: approximate by drawing an inner rect with circles on corners
-            x0, y0, x1, y1 = box
-            r = radius
-            # Center rect
-            draw.rectangle(
-                [x0 + r, y0, x1 - r, y1], fill=fill, outline=outline, width=width
-            )
-            draw.rectangle(
-                [x0, y0 + r, x1, y1 - r], fill=fill, outline=outline, width=width
-            )
-            # Corners
-            draw.pieslice(
-                [x0, y0, x0 + 2 * r, y0 + 2 * r], 180, 270, fill=fill, outline=outline
-            )
-            draw.pieslice(
-                [x1 - 2 * r, y0, x1, y0 + 2 * r], 270, 360, fill=fill, outline=outline
-            )
-            draw.pieslice(
-                [x0, y1 - 2 * r, x0 + 2 * r, y1], 90, 180, fill=fill, outline=outline
-            )
-            draw.pieslice(
-                [x1 - 2 * r, y1 - 2 * r, x1, y1], 0, 90, fill=fill, outline=outline
-            )
-
-    # Monitor bezel
-    bezel = (16, 20, size - 16, int(size * 0.60))  # [left, top, right, bottom]
-    rounded_rect(bezel, radius=12, fill=bezel_color, outline=outline_soft, width=2)
-
-    # Screen area (inner)
-    inset = 6
-    inner = (bezel[0] + inset, bezel[1] + inset, bezel[2] - inset, bezel[3] - inset)
-    rounded_rect(inner, radius=8, fill=screen_fill)
-    # Top highlight for subtle depth
-    highlight_height = 10
-    draw.rectangle(
-        (inner[0] + 1, inner[1] + 1, inner[2] - 1, inner[1] + highlight_height),
-        fill=screen_highlight,
-    )
-
-    # Stand and base
-    stem = (size // 2 - 6, bezel[3] + 6, size // 2 + 6, bezel[3] + 28)
-    base = (size // 2 - 28, bezel[3] + 28, size // 2 + 28, bezel[3] + 38)
-    # Shadow under base
-    draw.ellipse((base[0], base[3] - 2, base[2], base[3] + 6), fill=shadow)
-    draw.rectangle(stem, fill=metal)
-    rounded_rect(base, radius=6, fill=metal)
-
-    # Swap arrows motif in the screen area (two chevrons)
-    # Left chevron (pointing right)
-    lcx = inner[0] + (inner[2] - inner[0]) * 0.36
-    cy = (inner[1] + inner[3]) / 2
-    size_px = 10
-    left_tri = [
-        (lcx - size_px, cy - size_px),
-        (lcx + size_px, cy),
-        (lcx - size_px, cy + size_px),
-    ]
-    draw.polygon(left_tri, fill=glyph)
-    # Right chevron (pointing left)
-    rcx = inner[0] + (inner[2] - inner[0]) * 0.64
-    right_tri = [
-        (rcx + size_px, cy - size_px),
-        (rcx - size_px, cy),
-        (rcx + size_px, cy + size_px),
-    ]
-    draw.polygon(right_tri, fill=glyph)
-
-    # Downscale for sharp tray rendering
-    image_small = img.resize((target_size, target_size), Image.LANCZOS)
-    return image_small
-
-
 class WinDisplayTray:
     def __init__(self) -> None:
         self.icon: Optional[pystray.Icon] = None
@@ -280,10 +179,11 @@ class WinDisplayTray:
         # Preferred refresh rate per monitor (Hz). Defaults to current at startup
         self._preferred_freq: Dict[str, int] = {}
 
-    def _load_tray_icon_from_assets(self) -> Optional[Image.Image]:
-        """Load tray icon from packaged assets (ICO), fallback to generated image.
+    def _load_tray_icon_from_assets(self) -> Image.Image:
+        """Load tray icon from packaged assets (ICO) only.
 
         Tries to pick a 64x64 frame from the ICO for best tray clarity.
+        Raises if the ICO cannot be found/loaded.
         """
         # Try importlib.resources first (works for installed package)
         try:
@@ -316,11 +216,9 @@ class WinDisplayTray:
                 return ico.convert("RGBA")
         except Exception:
             pass
-        # Last resort: generate programmatically
-        try:
-            return _create_tray_image()
-        except Exception:
-            return None
+        # No fallback: always require ICO
+        logging.error("Tray icon ICO not found or failed to load")
+        raise FileNotFoundError("Tray icon ICO not found or failed to load")
 
     def _open_github(
         self,
@@ -632,7 +530,7 @@ class WinDisplayTray:
                 pass
 
     def run(self) -> None:
-        image = self._load_tray_icon_from_assets() or _create_tray_image()
+        image = self._load_tray_icon_from_assets()
         self._image = image  # Keep strong reference
         menu = self._build_menu()
         self.icon = pystray.Icon("WinDisplay", image, "WinDisplay", menu)
