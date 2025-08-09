@@ -44,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WinDisplay-installer
-          path: Output/*Setup*.exe
+          path: installer/Output/*Setup*.exe
 
   release:
     needs: build-windows
