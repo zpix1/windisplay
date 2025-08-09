@@ -19,6 +19,7 @@ windisplay = "windisplay.win_display:main"
 
 [tool.setuptools]
 packages = ["windisplay"]
+package-data = {"windisplay" = ["assets/app.ico"]}
 
 [tool.uv]
 dev-dependencies = []

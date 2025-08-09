@@ -26,16 +26,66 @@ jobs:
       - name: Sync deps
         run: uv sync
 
-      - name: Build executable with PyInstaller
+      - name: Prepare version file (using uv)
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v',''
+          # Robust numeric parts for version resource
+          $parts = $version.Split('.')
+          $major = if ($parts.Length -ge 1) { [int]$parts[0] } else { 0 }
+          $minor = if ($parts.Length -ge 2) { [int]$parts[1] } else { 0 }
+          $patch = if ($parts.Length -ge 3) { [int]$parts[2] } else { 0 }
+          @"
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=($major, $minor, $patch, 0),
+    prodvers=($major, $minor, $patch, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable('040904B0', [
+        StringStruct('CompanyName', 'zpix1'),
+        StringStruct('FileDescription', 'WinDisplay'),
+        StringStruct('FileVersion', '$version'),
+        StringStruct('InternalName', 'WinDisplay'),
+        StringStruct('LegalCopyright', '© 2025 zpix1'),
+        StringStruct('OriginalFilename', 'WinDisplay.exe'),
+        StringStruct('ProductName', 'WinDisplay'),
+        StringStruct('ProductVersion', '$version')
+      ])
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+"@ | Set-Content file_version_info.txt -Encoding UTF8
+
+      - name: Build executable with PyInstaller (using uv)
         run: |
           uv add pyinstaller
-          uv run pyinstaller --noconsole --name WinDisplay --onefile windisplay/__main__.py
+          uv run pyinstaller --clean --noconsole --name WinDisplay --onefile --noupx --icon windisplay/assets/app.ico --version-file file_version_info.txt windisplay/__main__.py
 
       - name: Upload artifact exe
         uses: actions/upload-artifact@v4
         with:
           name: WinDisplay-exe
           path: dist/WinDisplay.exe
+
+      - name: Code sign portable EXE (if certificate provided)
+        if: ${{ secrets.WINDOWS_CERT_PFX != '' && secrets.WINDOWS_CERT_PASSWORD != '' }}
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $bytes = [Convert]::FromBase64String($env:WINDOWS_CERT_PFX)
+          [IO.File]::WriteAllBytes('codesign.pfx', $bytes)
+          signtool sign /f codesign.pfx /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 dist\WinDisplay.exe | Write-Host
 
       - name: Install Inno Setup
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.0
@@ -48,6 +98,23 @@ jobs:
         with:
           name: WinDisplay-installer
           path: installer/Output/*Setup*.exe
+
+      - name: Code sign installer (if certificate provided)
+        if: ${{ secrets.WINDOWS_CERT_PFX != '' && secrets.WINDOWS_CERT_PASSWORD != '' }}
+        shell: pwsh
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v',''
+          $installer = Join-Path "installer/Output" ("WinDisplay-Setup-{0}.exe" -f $version)
+          if (Test-Path $installer) {
+            $bytes = [Convert]::FromBase64String($env:WINDOWS_CERT_PFX)
+            [IO.File]::WriteAllBytes('codesign.pfx', $bytes)
+            signtool sign /f codesign.pfx /p $env:WINDOWS_CERT_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 $installer | Write-Host
+          } else {
+            Write-Host "Installer not found at $installer"
+          }
 
       - name: Prepare release filenames
         shell: pwsh

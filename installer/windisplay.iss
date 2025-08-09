@@ -15,6 +15,7 @@ OutputDir=Output
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile={#SourceDir}\\windisplay\\assets\\app.ico
 
 [Files]
 Source: "{#SourceDir}\\dist\\WinDisplay.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -23,7 +24,7 @@ Source: "{#SourceDir}\\dist\\WinDisplay.exe"; DestDir: "{app}"; Flags: ignorever
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Icons]
-Name: "{autoprograms}\\WinDisplay"; Filename: "{app}\\WinDisplay.exe"
-Name: "{autodesktop}\\WinDisplay"; Filename: "{app}\\WinDisplay.exe"; Tasks: desktopicon
+Name: "{autoprograms}\\WinDisplay"; Filename: "{app}\\WinDisplay.exe"; IconFilename: "{app}\\WinDisplay.exe"
+Name: "{autodesktop}\\WinDisplay"; Filename: "{app}\\WinDisplay.exe"; Tasks: desktopicon; IconFilename: "{app}\\WinDisplay.exe"
 
 

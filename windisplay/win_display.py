@@ -12,6 +12,7 @@ import webbrowser
 import win32api
 import win32con
 from PIL import Image, ImageDraw
+import importlib.resources as resources
 
 os.environ.setdefault("PYSTRAY_BACKEND", "win32")
 import pystray
@@ -278,6 +279,48 @@ class WinDisplayTray:
         self._menu: Optional[pystray.Menu] = None
         # Preferred refresh rate per monitor (Hz). Defaults to current at startup
         self._preferred_freq: Dict[str, int] = {}
+
+    def _load_tray_icon_from_assets(self) -> Optional[Image.Image]:
+        """Load tray icon from packaged assets (ICO), fallback to generated image.
+
+        Tries to pick a 64x64 frame from the ICO for best tray clarity.
+        """
+        # Try importlib.resources first (works for installed package)
+        try:
+            with resources.files("windisplay").joinpath("assets/app.ico").open(
+                "rb"
+            ) as fp:
+                ico = Image.open(fp)
+                # Find best size <= 64
+                best = None
+                for size in getattr(ico, "sizes", lambda: [])():
+                    if size[0] <= 64 and (best is None or size[0] > best[0]):
+                        best = size
+                if best is None:
+                    best = (64, 64)
+                img = ico.copy()
+                img.size = best  # Hint for ICO
+                try:
+                    frame = ico.getimage(best)
+                except Exception:
+                    frame = ico
+                return frame.convert("RGBA")
+        except Exception:
+            pass
+        # Fallback to local relative path (useful in dev)
+        try:
+            here = os.path.dirname(__file__)
+            path = os.path.join(here, "assets", "app.ico")
+            if os.path.exists(path):
+                ico = Image.open(path)
+                return ico.convert("RGBA")
+        except Exception:
+            pass
+        # Last resort: generate programmatically
+        try:
+            return _create_tray_image()
+        except Exception:
+            return None
 
     def _open_github(
         self,
@@ -589,7 +632,7 @@ class WinDisplayTray:
                 pass
 
     def run(self) -> None:
-        image = _create_tray_image()
+        image = self._load_tray_icon_from_assets() or _create_tray_image()
         self._image = image  # Keep strong reference
         menu = self._build_menu()
         self.icon = pystray.Icon("WinDisplay", image, "WinDisplay", menu)
