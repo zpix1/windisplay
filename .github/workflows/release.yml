@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -59,7 +62,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/WinDisplay-exe/WinDisplay.exe
-            dist/WinDisplay-installer/*Setup*.exe
+            dist/**/WinDisplay.exe
+            dist/**/*Setup*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
