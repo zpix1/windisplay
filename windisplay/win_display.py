@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -180,45 +181,10 @@ class WinDisplayTray:
         self._preferred_freq: Dict[str, int] = {}
 
     def _load_tray_icon_from_assets(self) -> Image.Image:
-        """Load tray icon from packaged assets (ICO) only.
-
-        Tries to pick a 64x64 frame from the ICO for best tray clarity.
-        Raises if the ICO cannot be found/loaded.
-        """
-        # Try importlib.resources first (works for installed package)
-        try:
-            with resources.files("windisplay").joinpath("assets/app.ico").open(
-                "rb"
-            ) as fp:
-                ico = Image.open(fp)
-                # Find best size <= 64
-                best = None
-                for size in getattr(ico, "sizes", lambda: [])():
-                    if size[0] <= 64 and (best is None or size[0] > best[0]):
-                        best = size
-                if best is None:
-                    best = (64, 64)
-                img = ico.copy()
-                img.size = best  # Hint for ICO
-                try:
-                    frame = ico.getimage(best)
-                except Exception:
-                    frame = ico
-                return frame.convert("RGBA")
-        except Exception:
-            pass
-        # Fallback to local relative path (useful in dev)
-        try:
-            here = os.path.dirname(__file__)
-            path = os.path.join(here, "assets", "app.ico")
-            if os.path.exists(path):
-                ico = Image.open(path)
-                return ico.convert("RGBA")
-        except Exception:
-            pass
-        # No fallback: always require ICO
-        logging.error("Tray icon ICO not found or failed to load")
-        raise FileNotFoundError("Tray icon ICO not found or failed to load")
+        logging.info("loading tray icon from assets")
+        path = os.path.join(sys._MEIPASS, "assets/app.ico")
+        ico = Image.open(path)
+        return ico.convert("RGBA")
 
     def _open_github(
         self,
