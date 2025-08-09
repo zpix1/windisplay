@@ -12,6 +12,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.resolve()
 PYPROJECT = PROJECT_ROOT / "pyproject.toml"
 INIT_FILE = PROJECT_ROOT / "windisplay" / "__init__.py"
+INNO_ISS = PROJECT_ROOT / "installer" / "windisplay.iss"
 
 
 def read_version_from_pyproject() -> str:
@@ -60,6 +61,20 @@ def write_version_to_init(new_version: str) -> None:
     INIT_FILE.write_text(text, encoding="utf-8", newline="\n")
 
 
+def write_version_to_inno_setup(new_version: str) -> None:
+    if not INNO_ISS.exists():
+        return
+    text = INNO_ISS.read_text(encoding="utf-8")
+    # Update the default define so local builds get a proper version when /DMyAppVersion is not passed
+    text = re.sub(
+        r"^(#define\s+MyAppVersion\s+)\"[^\"]*\"\s*$",
+        rf"\1\"{new_version}\"",
+        text,
+        flags=re.M,
+    )
+    INNO_ISS.write_text(text, encoding="utf-8", newline="\n")
+
+
 def bump_version(ver: str, bump: str) -> str:
     major, minor, patch = map(int, ver.split("."))
     if bump == "major":
@@ -101,9 +116,18 @@ def main() -> int:
     print(f"Version: {old_ver} -> {new_ver}")
     write_version_to_pyproject(new_ver)
     write_version_to_init(new_ver)
+    write_version_to_inno_setup(new_version=new_ver)
 
     # Commit, tag, push
-    run(["git", "add", "pyproject.toml", "windisplay/__init__.py"])
+    run(
+        [
+            "git",
+            "add",
+            "pyproject.toml",
+            "windisplay/__init__.py",
+            "installer/windisplay.iss",
+        ]
+    )
     run(["git", "commit", "-m", f"chore: bump version to {new_ver}"])
     run(["git", "tag", "-a", f"v{new_ver}", "-m", f"Release v{new_ver}"])
 

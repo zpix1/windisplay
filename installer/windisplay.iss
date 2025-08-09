@@ -4,11 +4,14 @@
 [Setup]
 AppId={{9C7B2E3A-9F2F-4B7E-9C8B-1B1C2D3E4F5A}}
 AppName=WinDisplay
-AppVersion={#MyAppVersion}
+AppVersion={#MyAppVersionClean}
+AppPublisher=zpix1
+AppPublisherURL=https://github.com/zpix1/windisplay
 DefaultDirName={autopf}\WinDisplay
 DefaultGroupName=WinDisplay
 DisableProgramGroupPage=yes
-OutputBaseFilename=WinDisplay-Setup-{#MyAppVersion}
+OutputBaseFilename=WinDisplay-Setup-{#MyAppVersionClean}
+OutputDir=Output
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
