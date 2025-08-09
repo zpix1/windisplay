@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "windisplay"
+version = "0.1.0"
+description = "Windows tray app to switch display resolutions across multiple monitors."
+requires-python = ">=3.8"
+dependencies = [
+  "pystray",
+  "Pillow",
+  "pywin32",
+]
+
+[project.scripts]
+windisplay = "windisplay.win_display:main"
+
+[tool.uv]
+dev-dependencies = []
