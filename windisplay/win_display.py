@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -7,12 +8,15 @@ from typing import Dict, List, Optional, Tuple
 import os
 import logging
 import tempfile
+import webbrowser
 
 import win32api
 import win32con
-import win32print
-from PIL import Image, ImageDraw
+from PIL import Image
+import importlib.resources as resources
 
+os.environ.setdefault("PYSTRAY_BACKEND", "win32")
+import pystray
 
 # Win32 constants and helpers
 ENUM_CURRENT_SETTINGS = -1
@@ -63,7 +67,6 @@ def _enumerate_monitors() -> List[Monitor]:
                 friendly += " (Primary)"
             monitors.append(Monitor(device_name=dev.DeviceName, friendly_name=friendly))
         i += 1
-    print(monitors)
     logging.debug("enumerated monitors: %s", [m.friendly_name for m in monitors])
     return monitors
 
@@ -93,7 +96,11 @@ def _enumerate_modes(device_name: str) -> List[DisplayMode]:
         key = (m.width, m.height, m.display_frequency)
         if key not in unique:
             unique[key] = m
-    sorted_modes = sorted(unique.values(), key=lambda m: (m.width, m.height, m.display_frequency), reverse=True)
+    sorted_modes = sorted(
+        unique.values(),
+        key=lambda m: (m.width, m.height, m.display_frequency),
+        reverse=True,
+    )
     logging.debug("enumerated %d unique modes for %s", len(sorted_modes), device_name)
     return sorted_modes
 
@@ -102,7 +109,9 @@ def _get_current_mode(device_name: str) -> Optional[DisplayMode]:
     try:
         dm = win32api.EnumDisplaySettings(device_name, ENUM_CURRENT_SETTINGS)
         if dm:
-            return DisplayMode(dm.PelsWidth, dm.PelsHeight, dm.BitsPerPel, dm.DisplayFrequency)
+            return DisplayMode(
+                dm.PelsWidth, dm.PelsHeight, dm.BitsPerPel, dm.DisplayFrequency
+            )
     except win32api.error:
         return None
     return None
@@ -129,44 +138,37 @@ def _apply_mode(device_name: str, mode: DisplayMode) -> bool:
     # Test first
     result_test = win32api.ChangeDisplaySettingsEx(device_name, devmode, Flags=CDS_TEST)
     if result_test != DISP_CHANGE_SUCCESSFUL:
-        logging.warning("mode test failed code=%s for %s on %s", result_test, mode, device_name)
+        logging.warning(
+            "mode test failed code=%s for %s on %s", result_test, mode, device_name
+        )
         return False
     # Try immediate apply without touching registry
     result = win32api.ChangeDisplaySettingsEx(device_name, devmode, Flags=0)
     if result != DISP_CHANGE_SUCCESSFUL:
         # Fallback: write to registry with no reset, then commit
         try:
-            result2 = win32api.ChangeDisplaySettingsEx(device_name, devmode, Flags=win32con.CDS_UPDATEREGISTRY | win32con.CDS_NORESET)
+            result2 = win32api.ChangeDisplaySettingsEx(
+                device_name,
+                devmode,
+                Flags=win32con.CDS_UPDATEREGISTRY | win32con.CDS_NORESET,
+            )
         except AttributeError:
             # Older pywin32 may expose CDS_UPDATEREGISTRY via our const
-            result2 = win32api.ChangeDisplaySettingsEx(device_name, devmode, Flags=CDS_UPDATEREGISTRY | win32con.CDS_NORESET)
+            result2 = win32api.ChangeDisplaySettingsEx(
+                device_name, devmode, Flags=CDS_UPDATEREGISTRY | win32con.CDS_NORESET
+            )
         logging.debug("registry stage result=%s", result2)
         # Commit the change across the system
         result_commit = win32api.ChangeDisplaySettingsEx(None, None, Flags=0)
         logging.debug("commit stage result=%s", result_commit)
-        ok = result2 == DISP_CHANGE_SUCCESSFUL and result_commit == DISP_CHANGE_SUCCESSFUL
+        ok = (
+            result2 == DISP_CHANGE_SUCCESSFUL
+            and result_commit == DISP_CHANGE_SUCCESSFUL
+        )
     else:
         ok = True
     logging.info("apply mode %s on %s -> %s", mode, device_name, ok)
     return ok
-
-
-def _create_tray_image() -> Image.Image:
-    # Simple square icon with WD text
-    size = (64, 64)
-    image = Image.new("RGBA", size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    draw.rectangle([(4, 4), (60, 60)], fill=(35, 137, 218, 255), outline=(255, 255, 255, 255), width=3)
-    # Minimalistic 'WD'
-    draw.text((12, 18), "W", fill=(255, 255, 255, 255))
-    draw.text((36, 18), "D", fill=(255, 255, 255, 255))
-    return image
-
-
-# Tray app
-# Force the Windows backend explicitly
-os.environ.setdefault("PYSTRAY_BACKEND", "win32")
-import pystray
 
 
 class WinDisplayTray:
@@ -177,6 +179,22 @@ class WinDisplayTray:
         self._menu: Optional[pystray.Menu] = None
         # Preferred refresh rate per monitor (Hz). Defaults to current at startup
         self._preferred_freq: Dict[str, int] = {}
+
+    def _load_tray_icon_from_assets(self) -> Image.Image:
+        logging.info("loading tray icon from assets")
+        path = os.path.join(sys._MEIPASS, "assets/app.ico")
+        ico = Image.open(path)
+        return ico.convert("RGBA")
+
+    def _open_github(
+        self,
+        icon: Optional[pystray.Icon] = None,
+        item: Optional[pystray.MenuItem] = None,
+    ) -> None:
+        try:
+            webbrowser.open("https://github.com/zpix1/windisplay")
+        except Exception as exc:
+            logging.exception("open github failed: %s", exc)
 
     def _build_menu(self) -> pystray.Menu:
         try:
@@ -196,15 +214,22 @@ class WinDisplayTray:
                     key = (m.width, m.height)
                     if key not in seen_res:
                         seen_res[key] = m
-                all_resolutions = sorted(seen_res.keys(), key=lambda wh: (wh[0], wh[1]), reverse=True)
+                all_resolutions = sorted(
+                    seen_res.keys(), key=lambda wh: (wh[0], wh[1]), reverse=True
+                )
 
                 # Compute aspect ratio of current monitor
                 def aspect_ratio_tuple(w: int, h: int) -> Tuple[int, int]:
                     import math
+
                     g = math.gcd(w, h)
                     return (w // g, h // g)
 
-                cur_ratio = aspect_ratio_tuple(current.width, current.height) if current else None
+                cur_ratio = (
+                    aspect_ratio_tuple(current.width, current.height)
+                    if current
+                    else None
+                )
 
                 # Popular resolutions map
                 popular_labels: Dict[Tuple[int, int], str] = {
@@ -218,7 +243,7 @@ class WinDisplayTray:
                 # Popular list = same aspect ratio resolutions + explicitly labeled common ones present
                 popular_set: List[Tuple[int, int]] = []
                 if cur_ratio is not None:
-                    for (w, h) in all_resolutions:
+                    for w, h in all_resolutions:
                         if aspect_ratio_tuple(w, h) == cur_ratio:
                             popular_set.append((w, h))
                 for wh, _label in popular_labels.items():
@@ -240,34 +265,63 @@ class WinDisplayTray:
 
                 def apply_resolution(width: int, height: int):
                     def _inner(icon=None, item=None, *args, **kwargs):
-                        logging.info("click: set resolution %sx%s on %s", width, height, mon.device_name)
+                        logging.info(
+                            "click: set resolution %sx%s on %s",
+                            width,
+                            height,
+                            mon.device_name,
+                        )
                         try:
                             pref = self._preferred_freq.get(mon.device_name)
                             # Find mode with exact res and preferred freq; fallback to highest available freq
                             candidate = None
                             if pref is not None:
                                 for m in modes:
-                                    if m.width == width and m.height == height and m.display_frequency == pref:
+                                    if (
+                                        m.width == width
+                                        and m.height == height
+                                        and m.display_frequency == pref
+                                    ):
                                         candidate = m
                                         break
                             if candidate is None:
-                                best = [m for m in modes if m.width == width and m.height == height]
+                                best = [
+                                    m
+                                    for m in modes
+                                    if m.width == width and m.height == height
+                                ]
                                 if best:
-                                    candidate = max(best, key=lambda m: m.display_frequency)
+                                    candidate = max(
+                                        best, key=lambda m: m.display_frequency
+                                    )
                             if candidate is None and current is not None:
                                 # Fallback to current mode
-                                candidate = DisplayMode(width, height, current.bits_per_pixel, current.display_frequency)
+                                candidate = DisplayMode(
+                                    width,
+                                    height,
+                                    current.bits_per_pixel,
+                                    current.display_frequency,
+                                )
                             if candidate is not None:
                                 ok = _apply_mode(mon.device_name, candidate)
-                                logging.info("applied resolution %sx%s @ %sHz -> %s", candidate.width, candidate.height, candidate.display_frequency, ok)
+                                logging.info(
+                                    "applied resolution %sx%s @ %sHz -> %s",
+                                    candidate.width,
+                                    candidate.height,
+                                    candidate.display_frequency,
+                                    ok,
+                                )
                                 self.refresh()
                         except Exception:
                             logging.exception("error applying resolution")
+
                     return _inner
 
                 def apply_frequency(freq: int):
                     def _inner(icon=None, item=None, *args, **kwargs):
-                        logging.info("click: set frequency %sHz on %s", freq, mon.device_name)
+                        logging.info(
+                            "click: set frequency %sHz on %s", freq, mon.device_name
+                        )
                         try:
                             # Remember preference
                             self._preferred_freq[mon.device_name] = freq
@@ -277,7 +331,11 @@ class WinDisplayTray:
                                 return
                             # Find mode with same res and desired freq; fallback to closest available (max <= desired, else max)
                             exact = None
-                            same_res = [m for m in modes if m.width == cur.width and m.height == cur.height]
+                            same_res = [
+                                m
+                                for m in modes
+                                if m.width == cur.width and m.height == cur.height
+                            ]
                             for m in same_res:
                                 if m.display_frequency == freq:
                                     exact = m
@@ -285,24 +343,43 @@ class WinDisplayTray:
                             candidate = exact
                             if candidate is None and same_res:
                                 # Pick the one with highest frequency
-                                candidate = max(same_res, key=lambda m: m.display_frequency)
+                                candidate = max(
+                                    same_res, key=lambda m: m.display_frequency
+                                )
                             if candidate is not None:
                                 ok = _apply_mode(mon.device_name, candidate)
-                                logging.info("applied frequency %sHz at %sx%s -> %s", candidate.display_frequency, candidate.width, candidate.height, ok)
+                                logging.info(
+                                    "applied frequency %sHz at %sx%s -> %s",
+                                    candidate.display_frequency,
+                                    candidate.width,
+                                    candidate.height,
+                                    ok,
+                                )
                                 self.refresh()
                         except Exception:
                             logging.exception("error applying frequency")
+
                     return _inner
 
                 # Build Resolution submenu
                 res_items: List[pystray.MenuItem] = []
                 if current is not None:
-                    res_items.append(pystray.MenuItem(f"Current: {current.width}x{current.height}", None, enabled=False))
+                    res_items.append(
+                        pystray.MenuItem(
+                            f"Current: {current.width}x{current.height}",
+                            None,
+                            enabled=False,
+                        )
+                    )
                     res_items.append(pystray.Menu.SEPARATOR)
                 # Popular first
-                for (w, h) in popular_resolutions:
+                for w, h in popular_resolutions:
                     base = f"{w}x{h}"
-                    label_suffix = f" ({popular_labels[(w, h)]})" if (w, h) in popular_labels else ""
+                    label_suffix = (
+                        f" ({popular_labels[(w, h)]})"
+                        if (w, h) in popular_labels
+                        else ""
+                    )
                     label = base + label_suffix
                     if current and (w, h) == (current.width, current.height):
                         label = "✓ " + label
@@ -310,19 +387,31 @@ class WinDisplayTray:
                 # Others under More...
                 if other_resolutions:
                     more_items: List[pystray.MenuItem] = []
-                    for (w, h) in other_resolutions:
+                    for w, h in other_resolutions:
                         label = f"{w}x{h}"
                         if current and (w, h) == (current.width, current.height):
                             label = "✓ " + label
-                        more_items.append(pystray.MenuItem(label, apply_resolution(w, h)))
+                        more_items.append(
+                            pystray.MenuItem(label, apply_resolution(w, h))
+                        )
                     res_items.append(pystray.Menu.SEPARATOR)
-                    res_items.append(pystray.MenuItem("More…", pystray.Menu(*more_items)))
+                    res_items.append(
+                        pystray.MenuItem("More…", pystray.Menu(*more_items))
+                    )
 
                 # Build Refresh submenu
-                pref_freq = self._preferred_freq.get(mon.device_name, current.display_frequency if current else None)
+                pref_freq = self._preferred_freq.get(
+                    mon.device_name, current.display_frequency if current else None
+                )
                 freq_items: List[pystray.MenuItem] = []
                 if current is not None:
-                    freq_items.append(pystray.MenuItem(f"Current: {current.display_frequency} Hz", None, enabled=False))
+                    freq_items.append(
+                        pystray.MenuItem(
+                            f"Current: {current.display_frequency} Hz",
+                            None,
+                            enabled=False,
+                        )
+                    )
                     freq_items.append(pystray.Menu.SEPARATOR)
                 for f in freqs:
                     label = f"{f} Hz"
@@ -332,19 +421,37 @@ class WinDisplayTray:
 
                 items: List[pystray.MenuItem] = []
                 if current is not None:
-                    items.append(pystray.MenuItem(f"Current: {current.as_label()}", None, enabled=False))
+                    items.append(
+                        pystray.MenuItem(
+                            f"Current: {current.as_label()}", None, enabled=False
+                        )
+                    )
                     items.append(pystray.Menu.SEPARATOR)
                 items.append(pystray.MenuItem("Resolution", pystray.Menu(*res_items)))
-                items.append(pystray.MenuItem("Refresh Rate", pystray.Menu(*freq_items)))
+                items.append(
+                    pystray.MenuItem("Refresh Rate", pystray.Menu(*freq_items))
+                )
 
                 display_name = f"Monitor {index+1}"
                 return pystray.MenuItem(display_name, pystray.Menu(*items))
 
             monitor_items = [make_monitor_menu(m, i) for i, m in enumerate(monitors)]
 
+            # About submenu items
+            try:
+                from . import __version__
+            except Exception:
+                __version__ = "unknown"
+            about_items = [
+                pystray.MenuItem(f"WinDisplay v{__version__}", None, enabled=False),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Open GitHub", self._open_github),
+            ]
+
             actions = [
                 *monitor_items,
                 pystray.Menu.SEPARATOR,
+                pystray.MenuItem("About", pystray.Menu(*about_items)),
                 pystray.MenuItem("Refresh", self.refresh),
                 pystray.MenuItem("Exit", self.stop),
             ]
@@ -389,7 +496,7 @@ class WinDisplayTray:
                 pass
 
     def run(self) -> None:
-        image = _create_tray_image()
+        image = self._load_tray_icon_from_assets()
         self._image = image  # Keep strong reference
         menu = self._build_menu()
         self.icon = pystray.Icon("WinDisplay", image, "WinDisplay", menu)
@@ -406,7 +513,11 @@ class WinDisplayTray:
             time.sleep(0.2)
         logging.debug("icon.visible=%s", getattr(self.icon, "visible", None))
 
-    def stop(self, icon: Optional[pystray.Icon] = None, item: Optional[pystray.MenuItem] = None) -> None:
+    def stop(
+        self,
+        icon: Optional[pystray.Icon] = None,
+        item: Optional[pystray.MenuItem] = None,
+    ) -> None:
         if self.icon:
             self.icon.stop()
 
@@ -426,5 +537,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
