@@ -1,4 +1,4 @@
-#define MyAppVersion "0.1.11"
+#define MyAppVersion "0.1.12"
 #define SourceDir ".."
 
 [Setup]
