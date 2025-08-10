@@ -1,26 +1,9 @@
 import "./App.css";
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import ResolutionSelect from "./components/ResolutionSelect";
 import BrightnessSlider from "./components/BrightnessSlider";
 import ResolutionSlider from "./components/ResolutionSlider";
-
-type Resolution = {
-  width: number;
-  height: number;
-  bits_per_pixel: number;
-  refresh_hz: number;
-};
-
-type DisplayInfo = {
-  device_name: string;
-  friendly_name: string;
-  is_primary: boolean;
-  position_x: number;
-  position_y: number;
-  current: Resolution;
-  modes: Resolution[];
-};
+import { DisplayInfo } from "./lib/Resolutions";
 
 function App() {
   const [monitors, setMonitors] = useState<DisplayInfo[]>([]);
@@ -53,47 +36,6 @@ function App() {
     () => monitors[selectedIndex],
     [monitors, selectedIndex]
   );
-  const [selectedResKey, setSelectedResKey] = useState<string>("");
-
-  useEffect(() => {
-    if (selected) {
-      setSelectedResKey(`${selected.current.width}x${selected.current.height}`);
-    } else {
-      setSelectedResKey("");
-    }
-  }, [selected]);
-
-  // resolution options are now computed inside ResolutionSelect
-
-  async function applyResolution(key: string) {
-    if (!selected) return;
-    const [wStr, hStr] = key.split("x");
-    const width = Number(wStr);
-    const height = Number(hStr);
-    try {
-      setError(null);
-      // Try to keep current refresh rate if possible
-      await invoke("set_monitor_resolution", {
-        device_name: selected.device_name,
-        width,
-        height,
-        refresh_hz: selected.current.refresh_hz,
-      });
-      // Refresh monitors after change
-      const result = await invoke<DisplayInfo[]>("get_all_monitors");
-      setMonitors(result ?? []);
-      // Keep selection on same device
-      const idx = (result ?? []).findIndex(
-        (m) => m.device_name === selected.device_name
-      );
-      setSelectedIndex(idx >= 0 ? idx : 0);
-      setSelectedResKey(key);
-    } catch (e) {
-      setError((e as Error).message ?? String(e));
-    }
-  }
-
-  // Brightness logic moved to component
 
   return (
     <div className="app-root">
@@ -117,22 +59,6 @@ function App() {
       </div>
 
       {error && <div className="error">{error}</div>}
-
-      <div className="section">
-        <label className="label" htmlFor="resolution-select">
-          Resolution
-        </label>
-        <ResolutionSelect
-          modes={selected?.modes ?? []}
-          current={selected?.current ?? null}
-          value={selectedResKey}
-          disabled={loading || !selected}
-          onChange={(next) => {
-            setSelectedResKey(next);
-            void applyResolution(next);
-          }}
-        />
-      </div>
 
       <div className="section">
         {loading && <div className="muted">Loading...</div>}

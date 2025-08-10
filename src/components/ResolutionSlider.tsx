@@ -6,7 +6,7 @@ import {
   Resolution,
   PopularResolution,
   getPopularResolutions,
-} from "./ResolutionSelect";
+} from "../lib/Resolutions";
 
 type Props = {
   modes: Resolution[];
