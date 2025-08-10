@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useThrottle } from "../hooks/useDebouncedCallback";
+import { Slider } from "./ui/Slider/Slider";
+import { BrightnessIcon } from "./ui/Slider/icons/BrightnessIcon";
 
 type Props = {
   deviceName: string | null;
@@ -8,7 +10,11 @@ type Props = {
   onError?: (msg: string) => void;
 };
 
-export default function BrightnessSlider({ deviceName, disabled, onError }: Props) {
+export default function BrightnessSlider({
+  deviceName,
+  disabled,
+  onError,
+}: Props) {
   const [pct, setPct] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -21,10 +27,11 @@ export default function BrightnessSlider({ deviceName, disabled, onError }: Prop
       }
       try {
         setLoading(true);
-        const info = await invoke<{ min: number; current: number; max: number }>(
-          "get_monitor_brightness",
-          { deviceName }
-        );
+        const info = await invoke<{
+          min: number;
+          current: number;
+          max: number;
+        }>("get_monitor_brightness", { deviceName });
         if (!cancelled && info) {
           const span = Math.max(1, info.max - info.min);
           const val = Math.round(((info.current - info.min) / span) * 100);
@@ -41,41 +48,42 @@ export default function BrightnessSlider({ deviceName, disabled, onError }: Prop
     };
   }, [deviceName]);
 
-  const apply = useCallback(async (next: number) => {
-    console.log("apply", deviceName, next);
+  const apply = useCallback(
+    async (next: number) => {
+      console.log("apply", deviceName, next);
 
-    if (!deviceName) return;
-    try {
-      await invoke("set_monitor_brightness", { deviceName, percent: next });
-    } catch (e) {
-      if (onError) onError((e as Error).message ?? String(e));
-    }
-  }, [deviceName, onError]);
+      if (!deviceName) return;
+      try {
+        await invoke("set_monitor_brightness", { deviceName, percent: next });
+      } catch (e) {
+        if (onError) onError((e as Error).message ?? String(e));
+      }
+    },
+    [deviceName, onError]
+  );
 
   const throttledApply = useThrottle(apply, 100); // Throttle to 100ms
 
   return (
     <div className="section">
-      <label className="label" htmlFor="brightness-range">Brightness</label>
-      <input
+      <label className="label" htmlFor="brightness-range">
+        Brightness
+      </label>
+      <Slider
         id="brightness-range"
-        className="select"
-        type="range"
         min={0}
         max={100}
         step={1}
         disabled={disabled || loading || pct === null}
         value={pct ?? 0}
-        onChange={(e) => {
-          const next = Number(e.target.value);
+        onChange={(next) => {
           setPct(next);
           console.log("onChange", deviceName, next);
           throttledApply(next);
         }}
+        icon={<BrightnessIcon />}
+        label={`${pct ?? 0}%`}
       />
-      <div className="muted" aria-live="polite">{pct ?? 0}%</div>
     </div>
   );
 }
-
-

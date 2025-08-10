@@ -13,16 +13,18 @@
     "windows": [
       {
         "title": "WinDisplay",
-        "width": 300,
+        "width": 350,
         "height": 600,
         "resizable": false,
         "decorations": false,
-        "visible": false
+        "visible": false,
+        "transparent": true
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,

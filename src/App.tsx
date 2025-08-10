@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import ResolutionSelect from "./components/ResolutionSelect";
 import BrightnessSlider from "./components/BrightnessSlider";
+import ResolutionSlider from "./components/ResolutionSlider";
 
 type Resolution = {
   width: number;
@@ -48,7 +49,10 @@ function App() {
     };
   }, []);
 
-  const selected = useMemo(() => monitors[selectedIndex], [monitors, selectedIndex]);
+  const selected = useMemo(
+    () => monitors[selectedIndex],
+    [monitors, selectedIndex]
+  );
   const [selectedResKey, setSelectedResKey] = useState<string>("");
 
   useEffect(() => {
@@ -79,7 +83,9 @@ function App() {
       const result = await invoke<DisplayInfo[]>("get_all_monitors");
       setMonitors(result ?? []);
       // Keep selection on same device
-      const idx = (result ?? []).findIndex((m) => m.device_name === selected.device_name);
+      const idx = (result ?? []).findIndex(
+        (m) => m.device_name === selected.device_name
+      );
       setSelectedIndex(idx >= 0 ? idx : 0);
       setSelectedResKey(key);
     } catch (e) {
@@ -113,7 +119,9 @@ function App() {
       {error && <div className="error">{error}</div>}
 
       <div className="section">
-        <label className="label" htmlFor="resolution-select">Resolution</label>
+        <label className="label" htmlFor="resolution-select">
+          Resolution
+        </label>
         <ResolutionSelect
           modes={selected?.modes ?? []}
           current={selected?.current ?? null}
@@ -128,7 +136,9 @@ function App() {
 
       <div className="section">
         {loading && <div className="muted">Loading...</div>}
-        {!loading && !selected && <div className="muted">No monitors detected</div>}
+        {!loading && !selected && (
+          <div className="muted">No monitors detected</div>
+        )}
         {!loading && selected && (
           <div className="details">
             <div className="row">
@@ -149,6 +159,28 @@ function App() {
         deviceName={selected?.device_name ?? null}
         disabled={loading || !selected}
         onError={(msg) => setError(msg)}
+      />
+
+      <ResolutionSlider
+        modes={selected?.modes ?? []}
+        current={selected?.current ?? null}
+        disabled={loading || !selected}
+        deviceName={selected?.device_name ?? null}
+        onError={(msg) => setError(msg)}
+        onResolutionChanged={async () => {
+          // Refresh monitors after resolution change
+          try {
+            const result = await invoke<DisplayInfo[]>("get_all_monitors");
+            setMonitors(result ?? []);
+            // Keep selection on same device
+            const idx = (result ?? []).findIndex(
+              (m) => m.device_name === selected?.device_name
+            );
+            setSelectedIndex(idx >= 0 ? idx : 0);
+          } catch (e) {
+            setError((e as Error).message ?? String(e));
+          }
+        }}
       />
     </div>
   );

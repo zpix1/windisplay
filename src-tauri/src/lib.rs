@@ -1,7 +1,6 @@
 mod displays;
 mod positioning;
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use crate::positioning;
     use tauri::{
@@ -67,6 +66,8 @@ pub fn run() {
 
             // Keep main window hidden until tray click (config also sets visible: false)
             if let Some(window) = app.get_webview_window("main") {
+                // Apply vibrancy/blur effects based on platform
+
                 // Hide on focus out
                 window.on_window_event(move |event| {
                     if let WindowEvent::Focused(false) = event {
