@@ -1,5 +1,5 @@
 import "./App.css";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import BrightnessSlider from "./components/BrightnessSlider";
 import ResolutionSlider from "./components/ResolutionSlider";
@@ -36,6 +36,21 @@ function App() {
     () => monitors[selectedIndex],
     [monitors, selectedIndex]
   );
+
+  const handleResolutionChanged = useCallback(async () => {
+    // Refresh monitors after resolution change
+    try {
+      const result = await invoke<DisplayInfo[]>("get_all_monitors");
+      setMonitors(result ?? []);
+      // Keep selection on same device
+      const idx = (result ?? []).findIndex(
+        (m) => m.device_name === selected?.device_name
+      );
+      setSelectedIndex(idx >= 0 ? idx : 0);
+    } catch (e) {
+      setError((e as Error).message ?? String(e));
+    }
+  }, []);
 
   return (
     <div className="app-root">
@@ -93,20 +108,7 @@ function App() {
         disabled={loading || !selected}
         deviceName={selected?.device_name ?? null}
         onError={(msg) => setError(msg)}
-        onResolutionChanged={async () => {
-          // Refresh monitors after resolution change
-          try {
-            const result = await invoke<DisplayInfo[]>("get_all_monitors");
-            setMonitors(result ?? []);
-            // Keep selection on same device
-            const idx = (result ?? []).findIndex(
-              (m) => m.device_name === selected?.device_name
-            );
-            setSelectedIndex(idx >= 0 ? idx : 0);
-          } catch (e) {
-            setError((e as Error).message ?? String(e));
-          }
-        }}
+        onResolutionChanged={handleResolutionChanged}
       />
     </div>
   );
