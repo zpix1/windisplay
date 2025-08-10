@@ -1,7 +1,11 @@
-# Tauri + React + Typescript
+## WinDisplay
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+Like BetterDisplay, but for Windows.
 
-## Recommended IDE Setup
+- Change resolution and refresh rate of your monitors from your system tray.
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+More functions coming!
+
+## Installation
+
+Download latest executable from [the release page](https://github.com/zpix1/windisplay/releases/latest).
