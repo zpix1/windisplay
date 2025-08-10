@@ -204,13 +204,20 @@ fn set_monitor_resolution_windows(
         let hz = dm.dmDisplayFrequency;
         if w == width && h == height {
             if let Some(target_hz) = refresh_hz {
-                if hz == target_hz { chosen = Some(dm); break; }
+                if hz == target_hz {
+                    chosen = Some(dm);
+                    break;
+                }
             } else {
                 // If refresh rate not specified, prefer current or highest
                 chosen = match chosen {
                     None => Some(dm),
                     Some(prev) => {
-                        if dm.dmDisplayFrequency > prev.dmDisplayFrequency { Some(dm) } else { Some(prev) }
+                        if dm.dmDisplayFrequency > prev.dmDisplayFrequency {
+                            Some(dm)
+                        } else {
+                            Some(prev)
+                        }
                     }
                 };
             }
@@ -236,7 +243,10 @@ fn set_monitor_resolution_windows(
     if status == DISP_CHANGE_SUCCESSFUL {
         Ok(())
     } else {
-        Err(format!("ChangeDisplaySettingsExW failed with code: {:?}", status))
+        Err(format!(
+            "ChangeDisplaySettingsExW failed with code: {:?}",
+            status
+        ))
     }
 }
 

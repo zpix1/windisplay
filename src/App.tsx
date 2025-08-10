@@ -1,6 +1,7 @@
 import "./App.css";
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import ResolutionSelect from "./components/ResolutionSelect";
 
 type Resolution = {
   width: number;
@@ -57,17 +58,33 @@ function App() {
     }
   }, [selected]);
 
-  const resolutionOptions = useMemo(() => {
-    if (!selected) return [] as { key: string; width: number; height: number }[];
-    const set = new Map<string, { key: string; width: number; height: number }>();
-    for (const m of selected.modes) {
-      const key = `${m.width}x${m.height}`;
-      if (!set.has(key)) {
-        set.set(key, { key, width: m.width, height: m.height });
-      }
+  // resolution options are now computed inside ResolutionSelect
+
+  async function applyResolution(key: string) {
+    if (!selected) return;
+    const [wStr, hStr] = key.split("x");
+    const width = Number(wStr);
+    const height = Number(hStr);
+    try {
+      setError(null);
+      // Try to keep current refresh rate if possible
+      await invoke("set_monitor_resolution", {
+        deviceName: selected.device_name,
+        width,
+        height,
+        refreshHz: selected.current.refresh_hz,
+      });
+      // Refresh monitors after change
+      const result = await invoke<DisplayInfo[]>("get_all_monitors");
+      setMonitors(result ?? []);
+      // Keep selection on same device
+      const idx = (result ?? []).findIndex((m) => m.device_name === selected.device_name);
+      setSelectedIndex(idx >= 0 ? idx : 0);
+      setSelectedResKey(key);
+    } catch (e) {
+      setError((e as Error).message ?? String(e));
     }
-    return Array.from(set.values()).sort((a, b) => b.width * b.height - a.width * a.height);
-  }, [selected]);
+  }
 
   return (
     <div className="app-root">
@@ -84,8 +101,7 @@ function App() {
         >
           {monitors.map((m, idx) => (
             <option value={idx} key={m.device_name}>
-              {m.friendly_name || m.device_name}
-              {m.is_primary ? " (Primary)" : ""}
+              {`Monitor ${idx + 1}${m.is_primary ? " (Primary)" : ""}`}
             </option>
           ))}
         </select>
@@ -94,22 +110,17 @@ function App() {
       {error && <div className="error">{error}</div>}
 
       <div className="section">
-        <label className="label" htmlFor="resolution-select">
-          Resolution
-        </label>
-        <select
-          id="resolution-select"
-          className="select"
-          disabled={loading || !selected || resolutionOptions.length === 0}
+        <label className="label" htmlFor="resolution-select">Resolution</label>
+        <ResolutionSelect
+          modes={selected?.modes ?? []}
+          current={selected?.current ?? null}
           value={selectedResKey}
-          onChange={(e) => setSelectedResKey(e.target.value)}
-        >
-          {resolutionOptions.map((opt) => (
-            <option value={opt.key} key={opt.key}>
-              {opt.width} × {opt.height}
-            </option>
-          ))}
-        </select>
+          disabled={loading || !selected}
+          onChange={(next) => {
+            setSelectedResKey(next);
+            void applyResolution(next);
+          }}
+        />
       </div>
 
       <div className="section">
@@ -127,12 +138,6 @@ function App() {
               <span className="key">Refresh rate:</span>
               <span className="value">{selected.current.refresh_hz} Hz</span>
             </div>
-            {selectedResKey && (
-              <div className="row">
-                <span className="key">Selected:</span>
-                <span className="value">{selectedResKey.replace("x", " × ")}</span>
-              </div>
-            )}
           </div>
         )}
       </div>

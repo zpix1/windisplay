@@ -11,7 +11,10 @@ pub fn run() {
     };
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![displays::get_all_monitors, displays::set_monitor_resolution])
+        .invoke_handler(tauri::generate_handler![
+            displays::get_all_monitors,
+            displays::set_monitor_resolution
+        ])
         .setup(|app| {
             // Build a tray context menu
             let show_item = MenuItem::with_id(app, "show", "Show", true, Some(""))?;

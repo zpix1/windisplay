@@ -15,6 +15,7 @@
         "title": "windisplay",
         "width": 300,
         "height": 600,
+        "resizable": false,
         "decorations": false,
         "visible": false
       }
