@@ -15,6 +15,7 @@ pub fn run() {
             displays::set_monitor_resolution,
             displays::get_monitor_brightness,
             displays::set_monitor_brightness,
+            displays::identify_monitors,
         ])
         .setup(|app| {
             // Build a tray context menu

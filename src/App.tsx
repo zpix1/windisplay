@@ -50,6 +50,14 @@ function App() {
     } catch (e) {
       setError((e as Error).message ?? String(e));
     }
+  }, [selected?.device_name]);
+
+  const handleIdentifyMonitors = useCallback(async () => {
+    try {
+      await invoke("identify_monitors");
+    } catch (e) {
+      setError((e as Error).message ?? String(e));
+    }
   }, []);
 
   return (
@@ -58,19 +66,30 @@ function App() {
         <label className="label" htmlFor="monitor-select">
           Monitor
         </label>
-        <select
-          id="monitor-select"
-          className="select"
-          disabled={loading || monitors.length === 0}
-          value={selectedIndex}
-          onChange={(e) => setSelectedIndex(Number(e.target.value))}
-        >
-          {monitors.map((m, idx) => (
-            <option value={idx} key={m.device_name}>
-              {`Monitor ${idx + 1}${m.is_primary ? " (Primary)" : ""}`}
-            </option>
-          ))}
-        </select>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <select
+            id="monitor-select"
+            className="select"
+            disabled={loading || monitors.length === 0}
+            value={selectedIndex}
+            onChange={(e) => setSelectedIndex(Number(e.target.value))}
+            style={{ flex: 1 }}
+          >
+            {monitors.map((m, idx) => (
+              <option value={idx} key={m.device_name}>
+                {`Monitor ${idx + 1}${m.is_primary ? " (Primary)" : ""}`}
+              </option>
+            ))}
+          </select>
+          <button
+            className="identify-button"
+            onClick={handleIdentifyMonitors}
+            disabled={loading || monitors.length === 0}
+            title="Identify monitors by showing numbers on each screen"
+          >
+            🔍
+          </button>
+        </div>
       </div>
 
       {error && <div className="error">{error}</div>}

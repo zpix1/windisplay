@@ -1,6 +1,7 @@
 .slider-container {
   position: relative;
   width: 100%;
+  padding-right: 4px;
 }
 
 .slider-overlay {

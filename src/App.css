@@ -74,3 +74,33 @@ body {
   border-radius: 8px;
   margin: 8px 12px;
 }
+
+.identify-button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #d0d0d0;
+  background: #fff;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  min-width: 40px;
+  height: 36px;
+}
+
+.identify-button:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #b0b0b0;
+}
+
+.identify-button:active:not(:disabled) {
+  background: #e8e8e8;
+  transform: translateY(1px);
+}
+
+.identify-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

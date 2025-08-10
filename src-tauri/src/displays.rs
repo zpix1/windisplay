@@ -75,6 +75,17 @@ pub fn set_monitor_brightness(device_name: String, percent: u32) -> Result<(), S
     }
 }
 
+#[tauri::command]
+pub async fn identify_monitors(app_handle: tauri::AppHandle) -> Result<(), String> {
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "windows")] {
+            identify_monitors_windows(app_handle).await
+        } else {
+            Err("Unsupported platform".to_string())
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
     use std::mem::{size_of, zeroed};
@@ -430,4 +441,235 @@ fn to_wide_null_terminated(s: &str) -> Vec<u16> {
         .encode_wide()
         .chain(std::iter::once(0))
         .collect()
+}
+
+#[cfg(target_os = "windows")]
+async fn identify_monitors_windows(_app_handle: tauri::AppHandle) -> Result<(), String> {
+    use std::mem::zeroed;
+    use std::ptr::null_mut;
+    use windows::Win32::Foundation::{COLORREF, HWND, HINSTANCE, LPARAM, LRESULT, RECT, WPARAM};
+    use windows::Win32::Graphics::Gdi::{
+        BeginPaint, CreateFontW, DeleteObject, EndPaint, SelectObject, SetBkMode,
+        SetTextColor, TextOutW, HFONT, PAINTSTRUCT, TRANSPARENT, FW_BOLD, DEFAULT_CHARSET,
+        OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH,
+    };
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect, GetMessageW,
+        GetWindowLongPtrW, IsWindow, KillTimer, LoadCursorW, PeekMessageW, PostQuitMessage, RegisterClassW,
+        SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+        TranslateMessage, UnregisterClassW, CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA, HWND_TOPMOST,
+        IDC_ARROW, LWA_ALPHA, MSG, PM_REMOVE, SW_SHOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, WNDCLASSW,
+        WM_CREATE, WM_DESTROY, WM_PAINT, WM_QUIT, WM_TIMER, WS_EX_LAYERED, WS_EX_TOPMOST,
+        WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_POPUP,
+    };
+
+    let monitors = get_all_monitors_windows()?;
+
+    // Spawn a thread to handle the native windows
+    std::thread::spawn(move || {
+        // Register window class for overlay windows with unique name
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let class_name = to_wide_null_terminated(&format!("MonitorIdentifierOverlay_{}", timestamp));
+        let mut wc: WNDCLASSW = unsafe { zeroed() };
+        wc.style = CS_HREDRAW | CS_VREDRAW;
+        wc.lpfnWndProc = Some(overlay_window_proc);
+        wc.hInstance = HINSTANCE(unsafe { GetModuleHandleW(None).unwrap_or_default().0 });
+        wc.hCursor = unsafe { LoadCursorW(None, IDC_ARROW).unwrap_or_default() };
+        wc.lpszClassName = windows::core::PCWSTR(class_name.as_ptr());
+
+        unsafe {
+            if RegisterClassW(&wc) == 0 {
+                return;
+            }
+        }
+
+        let mut overlay_windows = Vec::new();
+
+        // Create overlay windows for each monitor
+        for (index, monitor) in monitors.iter().enumerate() {
+            let monitor_number = index + 1;
+            let window_title = to_wide_null_terminated(&format!("Monitor {} Overlay", monitor_number));
+
+            let hwnd = unsafe {
+                CreateWindowExW(
+                    WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW,
+                    windows::core::PCWSTR(class_name.as_ptr()),
+                    windows::core::PCWSTR(window_title.as_ptr()),
+                    WS_POPUP,
+                    monitor.position_x,
+                    monitor.position_y,
+                    monitor.current.width as i32,
+                    monitor.current.height as i32,
+                    HWND(0),
+                    None,
+                    GetModuleHandleW(None).unwrap_or_default(),
+                    Some(Box::into_raw(Box::new(monitor_number)) as *const core::ffi::c_void),
+                )
+            };
+
+            if hwnd.0 == 0 {
+                continue;
+            }
+
+            // Set window transparency (180 out of 255 for semi-transparency)
+            unsafe {
+                SetLayeredWindowAttributes(hwnd, COLORREF(0), 150, LWA_ALPHA);
+                SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+                );
+                ShowWindow(hwnd, SW_SHOW);
+
+                // Set a timer to close the window after 3 seconds
+                SetTimer(hwnd, 1, 2000, None);
+            }
+
+            overlay_windows.push(hwnd);
+        }
+
+        // Message loop to handle window events - use PeekMessage for non-blocking
+        let mut msg: MSG = unsafe { zeroed() };
+        let mut windows_active = true;
+        while windows_active {
+            if unsafe { PeekMessageW(&mut msg, HWND(0), 0, 0, PM_REMOVE) }.as_bool() {
+                unsafe {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
+                if msg.message == WM_QUIT {
+                    windows_active = false;
+                }
+            } else {
+                // Check if any overlay windows are still alive
+                let mut any_alive = false;
+                for &window in &overlay_windows {
+                    if unsafe { IsWindow(window) }.as_bool() {
+                        any_alive = true;
+                        break;
+                    }
+                }
+                if !any_alive {
+                    windows_active = false;
+                } else {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+            }
+        }
+
+        // Clean up - unregister window class
+        unsafe {
+            UnregisterClassW(
+                windows::core::PCWSTR(class_name.as_ptr()),
+                GetModuleHandleW(None).unwrap_or_default(),
+            );
+        }
+    });
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn overlay_window_proc(
+    hwnd: windows::Win32::Foundation::HWND,
+    msg: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, RECT, WPARAM};
+    use windows::Win32::Graphics::Gdi::{
+        BeginPaint, CreateFontW, DeleteObject, EndPaint, SelectObject, SetBkMode,
+        SetTextColor, TextOutW, HFONT, PAINTSTRUCT, TRANSPARENT, FW_BOLD, DEFAULT_CHARSET,
+        OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+        DestroyWindow, GetClientRect, GetWindowLongPtrW, KillTimer, PostQuitMessage, SetWindowLongPtrW, GWLP_USERDATA,
+        WM_CREATE, WM_DESTROY, WM_PAINT, WM_TIMER,
+    };
+
+    match msg {
+        WM_CREATE => {
+            // Store monitor number in window's user data
+            let create_struct = lparam.0 as *const windows::Win32::UI::WindowsAndMessaging::CREATESTRUCTW;
+            if !create_struct.is_null() {
+                let monitor_number_ptr = (*create_struct).lpCreateParams as *mut i32;
+                if !monitor_number_ptr.is_null() {
+                    let monitor_number = unsafe { *monitor_number_ptr };
+                    SetWindowLongPtrW(hwnd, GWLP_USERDATA, monitor_number as isize);
+                    // Clean up the allocated memory
+                    let _ = unsafe { Box::from_raw(monitor_number_ptr) };
+                }
+            }
+            LRESULT(0)
+        }
+        WM_PAINT => {
+            let mut ps: PAINTSTRUCT = std::mem::zeroed();
+            let hdc = BeginPaint(hwnd, &mut ps);
+
+            if !hdc.is_invalid() {
+                let monitor_number = GetWindowLongPtrW(hwnd, GWLP_USERDATA) as i32;
+
+                // Create large font for the text
+                let font_name = to_wide_null_terminated("Arial");
+                let hfont = CreateFontW(
+                    120,                          // Height
+                    0,                            // Width
+                    0,                            // Escapement
+                    0,                            // Orientation
+                    FW_BOLD.0 as i32,             // Weight
+                    0,                            // Italic
+                    0,                            // Underline
+                    0,                            // StrikeOut
+                    DEFAULT_CHARSET.0 as u32,     // CharSet
+                    OUT_TT_PRECIS.0 as u32,       // OutPrecision
+                    CLIP_DEFAULT_PRECIS.0 as u32, // ClipPrecision
+                    DEFAULT_QUALITY.0 as u32,     // Quality
+                    DEFAULT_PITCH.0 as u32,       // PitchAndFamily
+                    windows::core::PCWSTR(font_name.as_ptr()),
+                );
+
+                let old_font = SelectObject(hdc, hfont);
+                SetBkMode(hdc, TRANSPARENT);
+                SetTextColor(hdc, COLORREF(0x00FFFFFF)); // White color
+
+                // Get window dimensions to center text
+                let mut rect: RECT = std::mem::zeroed();
+                GetClientRect(hwnd, &mut rect);
+
+                let text = format!("Monitor {}", monitor_number);
+                let text_wide = to_wide_null_terminated(&text);
+
+                // Calculate center position (approximate)
+                let text_width = text.len() as i32 * 60; // Rough estimate
+                let text_height = 120;
+                let x = (rect.right - text_width) / 2;
+                let y = (rect.bottom - text_height) / 2;
+
+                TextOutW(hdc, x, y, &text_wide[..text_wide.len() - 1]);
+
+                SelectObject(hdc, old_font);
+                DeleteObject(hfont);
+                EndPaint(hwnd, &ps);
+            }
+            LRESULT(0)
+        }
+        WM_TIMER => {
+            // Timer expired, close the window
+            KillTimer(hwnd, 1);
+            DestroyWindow(hwnd);
+            LRESULT(0)
+        }
+        WM_DESTROY => {
+            LRESULT(0)
+        }
+        _ => windows::Win32::UI::WindowsAndMessaging::DefWindowProcW(hwnd, msg, wparam, lparam),
+    }
 }
