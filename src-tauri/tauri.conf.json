@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "windisplay",
+  "productName": "WinDisplay",
   "version": "0.1.0",
   "identifier": "com.zpix1.windisplay",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "windisplay",
+        "title": "WinDisplay",
         "width": 300,
         "height": 600,
         "resizable": false,
