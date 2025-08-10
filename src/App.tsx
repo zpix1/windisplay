@@ -2,6 +2,7 @@ import "./App.css";
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import ResolutionSelect from "./components/ResolutionSelect";
+import BrightnessSlider from "./components/BrightnessSlider";
 
 type Resolution = {
   width: number;
@@ -69,10 +70,10 @@ function App() {
       setError(null);
       // Try to keep current refresh rate if possible
       await invoke("set_monitor_resolution", {
-        deviceName: selected.device_name,
+        device_name: selected.device_name,
         width,
         height,
-        refreshHz: selected.current.refresh_hz,
+        refresh_hz: selected.current.refresh_hz,
       });
       // Refresh monitors after change
       const result = await invoke<DisplayInfo[]>("get_all_monitors");
@@ -85,6 +86,8 @@ function App() {
       setError((e as Error).message ?? String(e));
     }
   }
+
+  // Brightness logic moved to component
 
   return (
     <div className="app-root">
@@ -141,6 +144,12 @@ function App() {
           </div>
         )}
       </div>
+
+      <BrightnessSlider
+        deviceName={selected?.device_name ?? null}
+        disabled={loading || !selected}
+        onError={(msg) => setError(msg)}
+      />
     </div>
   );
 }

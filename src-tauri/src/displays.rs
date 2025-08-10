@@ -46,6 +46,35 @@ pub fn set_monitor_resolution(
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct BrightnessInfo {
+    pub min: u32,
+    pub current: u32,
+    pub max: u32,
+}
+
+#[tauri::command]
+pub fn get_monitor_brightness(device_name: String) -> Result<BrightnessInfo, String> {
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "windows")] {
+            get_monitor_brightness_windows(device_name)
+        } else {
+            Err("Unsupported platform".to_string())
+        }
+    }
+}
+
+#[tauri::command]
+pub fn set_monitor_brightness(device_name: String, percent: u32) -> Result<(), String> {
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "windows")] {
+            set_monitor_brightness_windows(device_name, percent)
+        } else {
+            Err("Unsupported platform".to_string())
+        }
+    }
+}
+
 #[cfg(target_os = "windows")]
 fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
     use std::mem::{size_of, zeroed};
@@ -248,6 +277,143 @@ fn set_monitor_resolution_windows(
             status
         ))
     }
+}
+
+#[cfg(target_os = "windows")]
+fn find_hmonitor_by_device_name(
+    device_name: &str,
+) -> Option<windows::Win32::Graphics::Gdi::HMONITOR> {
+    use std::mem::zeroed;
+    use windows::Win32::Foundation::{BOOL, LPARAM, RECT};
+    use windows::Win32::Graphics::Gdi::{
+        EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFOEXW,
+    };
+
+    struct Ctx {
+        target: Vec<u16>,
+        found: Option<HMONITOR>,
+    }
+
+    unsafe extern "system" fn enum_proc(
+        hmonitor: HMONITOR,
+        _hdc: HDC,
+        _rc: *mut RECT,
+        lparam: LPARAM,
+    ) -> BOOL {
+        let ctx = &mut *(lparam.0 as *mut Ctx);
+        let mut mi: MONITORINFOEXW = zeroed();
+        mi.monitorInfo.cbSize = std::mem::size_of::<MONITORINFOEXW>() as u32;
+        if GetMonitorInfoW(hmonitor, &mut mi as *mut _ as *mut _).as_bool() {
+            let name = widestr_to_string(&mi.szDevice);
+            let target =
+                String::from_utf16_lossy(&ctx.target[..ctx.target.len().saturating_sub(1)]);
+            if name == target {
+                ctx.found = Some(hmonitor);
+                return BOOL(0); // FALSE to stop enumerating
+            }
+        }
+        BOOL(1) // TRUE to continue
+    }
+
+    let mut ctx = Ctx {
+        target: to_wide_null_terminated(device_name),
+        found: None,
+    };
+    unsafe {
+        let _ = EnumDisplayMonitors(
+            HDC(0),
+            None,
+            Some(enum_proc),
+            LPARAM(&mut ctx as *mut _ as isize),
+        );
+    }
+    ctx.found
+}
+
+#[cfg(target_os = "windows")]
+fn with_first_physical_monitor<
+    T,
+    F: FnOnce(windows::Win32::Devices::Display::PHYSICAL_MONITOR) -> Result<T, String>,
+>(
+    device_name: &str,
+    f: F,
+) -> Result<T, String> {
+    use windows::Win32::Devices::Display::{
+        DestroyPhysicalMonitors, GetNumberOfPhysicalMonitorsFromHMONITOR,
+        GetPhysicalMonitorsFromHMONITOR, PHYSICAL_MONITOR,
+    };
+    use windows::Win32::Graphics::Gdi::HMONITOR;
+
+    let hmon: HMONITOR = find_hmonitor_by_device_name(device_name)
+        .ok_or_else(|| "Monitor handle not found".to_string())?;
+
+    let mut count: u32 = 0;
+    match unsafe { GetNumberOfPhysicalMonitorsFromHMONITOR(hmon, &mut count) } {
+        Ok(_) => {}
+        Err(_) => return Err("GetNumberOfPhysicalMonitorsFromHMONITOR failed".to_string()),
+    }
+    if count == 0 {
+        return Err("No physical monitors found or operation unsupported".to_string());
+    }
+
+    let mut vec: Vec<PHYSICAL_MONITOR> = vec![unsafe { std::mem::zeroed() }; count as usize];
+    match unsafe { GetPhysicalMonitorsFromHMONITOR(hmon, &mut vec) } {
+        Ok(_) => {}
+        Err(_) => return Err("GetPhysicalMonitorsFromHMONITOR failed".to_string()),
+    }
+
+    // Use the first physical monitor
+    let result = f(vec[0]);
+
+    let _ = unsafe { DestroyPhysicalMonitors(&vec) };
+    result
+}
+
+#[cfg(target_os = "windows")]
+fn get_monitor_brightness_windows(device_name: String) -> Result<BrightnessInfo, String> {
+    use windows::Win32::Devices::Display::GetMonitorBrightness;
+
+    with_first_physical_monitor(&device_name, |pm| {
+        let mut min = 0u32;
+        let mut cur = 0u32;
+        let mut max = 0u32;
+        let ok = unsafe { GetMonitorBrightness(pm.hPhysicalMonitor, &mut min, &mut cur, &mut max) };
+        if ok == 0 {
+            return Err("GetMonitorBrightness failed (monitor may not support DDC/CI)".to_string());
+        }
+        Ok(BrightnessInfo {
+            min,
+            current: cur,
+            max,
+        })
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn set_monitor_brightness_windows(device_name: String, percent: u32) -> Result<(), String> {
+    println!(
+        "set_monitor_brightness_windows: {:?}, {:?}",
+        device_name, percent
+    );
+    use windows::Win32::Devices::Display::{GetMonitorBrightness, SetMonitorBrightness};
+
+    let pct = percent.min(100);
+    with_first_physical_monitor(&device_name, |pm| {
+        let mut min = 0u32;
+        let mut cur = 0u32;
+        let mut max = 0u32;
+        let ok = unsafe { GetMonitorBrightness(pm.hPhysicalMonitor, &mut min, &mut cur, &mut max) };
+        if ok == 0 || max < min {
+            return Err("GetMonitorBrightness failed (monitor may not support DDC/CI)".to_string());
+        }
+        let span = max - min;
+        let value = min + ((span as u64 * pct as u64 + 50) / 100) as u32;
+        let ok = unsafe { SetMonitorBrightness(pm.hPhysicalMonitor, value) };
+        if ok == 0 {
+            return Err("SetMonitorBrightness failed".to_string());
+        }
+        Ok(())
+    })
 }
 
 #[cfg(target_os = "windows")]

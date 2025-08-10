@@ -35,6 +35,22 @@ html {
   background: #fff;
 }
 
+input[type="range"].select {
+  appearance: none;
+  height: 6px;
+  padding: 0;
+  background: linear-gradient(90deg, #5a8cff, #9bb8ff);
+  border-radius: 6px;
+}
+input[type="range"].select::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #bfc7e1;
+}
+
 .details {
   display: grid;
   gap: 8px;

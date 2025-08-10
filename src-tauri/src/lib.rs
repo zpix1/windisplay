@@ -13,7 +13,9 @@ pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             displays::get_all_monitors,
-            displays::set_monitor_resolution
+            displays::set_monitor_resolution,
+            displays::get_monitor_brightness,
+            displays::set_monitor_brightness,
         ])
         .setup(|app| {
             // Build a tray context menu
