@@ -2,11 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Slider } from "./ui/Slider/Slider";
 import { ResolutionIcon } from "./ui/Slider/icons/ResolutionIcon";
-import {
-  Resolution,
-  PopularResolution,
-  getPopularResolutions,
-} from "../lib/Resolutions";
+import { Resolution, getPopularResolutions } from "../lib/Resolutions";
 
 type Props = {
   modes: Resolution[];
