@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" aria-label="WinDisplay border">
+  <title>WinDisplay — border</title>
+  <defs>
+    <linearGradient id="grad-border" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1FA2FF"/>
+      <stop offset="100%" stop-color="#0063B1"/>
+    </linearGradient>
+    <filter id="shadow-border" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.2"/>
+    </filter>
+    
+  </defs>
+  <rect x="20" y="24" width="216" height="148" rx="16" fill="#0f0f0f" stroke="#3a3a3a" stroke-width="2" filter="url(#shadow-border)"/>
+  <rect x="32" y="36" width="192" height="124" rx="4" fill="url(#grad-border)"/>
+  
+  <g fill="#FFFFFF">
+    <rect x="96" y="66" width="30" height="30" rx="3"/>
+    <rect x="130" y="66" width="30" height="30" rx="3"/>
+    <rect x="96" y="100" width="30" height="30" rx="3"/>
+    <rect x="130" y="100" width="30" height="30" rx="3"/>
+  </g>
+  <rect x="121" y="172" width="14" height="26" rx="0" fill="#000000"/>
+  <rect x="80" y="198" width="96" height="14" rx="7" fill="#000000"/>
+</svg>

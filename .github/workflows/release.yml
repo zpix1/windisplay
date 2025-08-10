@@ -1,0 +1,70 @@
+name: Release Tauri App
+
+on:
+  push:
+    tags:
+      - "v*" # Triggers on version tags like v1.0.0
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "windows-latest"
+            args: "--target x86_64-pc-windows-msvc"
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and release Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: Add code signing secrets if you have a certificate
+          # TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          # TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "WinDisplay v__VERSION__"
+          releaseBody: |
+            Windows Display Control Application
+
+            **Installation:**
+            1. Download the `.msi` installer below
+            2. Run the installer as administrator
+            3. The app will be available in your Start Menu
+
+            **What's new:**
+            - See commit history for detailed changes
+
+            **System Requirements:**
+            - Windows 10 or later
+            - x64 architecture
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
