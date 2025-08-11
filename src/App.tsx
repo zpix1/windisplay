@@ -1,19 +1,10 @@
 import "./App.css";
-import { useCallback, useMemo, useState } from "react";
 import MonitorControls from "./components/MonitorControls";
 import { useMonitorsContext } from "./context/MonitorsContext";
-import { invoke } from "@tauri-apps/api/core";
+import IdentifyMonitorsButton from "./components/IdentifyMonitorsButton";
 
 function App() {
   const { monitors, loading, error, setError } = useMonitorsContext();
-
-  const handleIdentifyMonitors = useCallback(async () => {
-    try {
-      await invoke("identify_monitors");
-    } catch (e) {
-      setError((e as Error).message ?? String(e));
-    }
-  }, [setError]);
 
   return (
     <div className="app-root">
@@ -43,9 +34,7 @@ function App() {
           </div>
         ))}
         <div className="section">
-          <div className="button" onClick={handleIdentifyMonitors}>
-            Identify Monitors
-          </div>
+          <IdentifyMonitorsButton disabled={loading} onError={setError} />
         </div>
       </div>
     </div>
