@@ -1,10 +1,10 @@
 .text-toggle {
-    font-size: 18px;
+    font-size: 16px;
     display: flex;
     width: 100%;
     gap: 16px;
-    line-height: 40px;
-    height: 40px;
+    line-height: 36px;
+    height: 36px;
     align-items: center;
     cursor: pointer;
     padding: 4px 14px;
@@ -20,8 +20,8 @@
     background-color: #D8D8D8;
     border-radius: 50%;
     padding: 5px;
-    width: 30px;
-    height: 30px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
