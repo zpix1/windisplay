@@ -1,8 +1,7 @@
 import "./App.css";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import BrightnessSlider from "./components/BrightnessSlider";
-import ResolutionSlider from "./components/ResolutionSlider";
+import MonitorControls from "./components/MonitorControls";
 import { DisplayInfo } from "./lib/Resolutions";
 
 function App() {
@@ -99,36 +98,16 @@ function App() {
         {!loading && !selected && (
           <div className="muted">No monitors detected</div>
         )}
-        {!loading && selected && (
-          <div className="details">
-            <div className="row">
-              <span className="key">Resolution:</span>
-              <span className="value">
-                {selected.current.width} × {selected.current.height}
-              </span>
-            </div>
-            <div className="row">
-              <span className="key">Refresh rate:</span>
-              <span className="value">{selected.current.refresh_hz} Hz</span>
-            </div>
-          </div>
-        )}
       </div>
 
-      <BrightnessSlider
-        deviceName={selected?.device_name ?? null}
-        disabled={loading || !selected}
-        onError={(msg) => setError(msg)}
-      />
-
-      <ResolutionSlider
-        modes={selected?.modes ?? []}
-        current={selected?.current ?? null}
-        disabled={loading || !selected}
-        deviceName={selected?.device_name ?? null}
-        onError={(msg) => setError(msg)}
-        onResolutionChanged={handleResolutionChanged}
-      />
+      {!loading && selected && (
+        <MonitorControls
+          monitor={selected}
+          disabled={loading}
+          onError={(msg) => setError(msg)}
+          onResolutionChanged={handleResolutionChanged}
+        />
+      )}
     </div>
   );
 }
