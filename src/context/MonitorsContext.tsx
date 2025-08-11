@@ -30,7 +30,11 @@ export function MonitorsProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       const result = await invoke<DisplayInfo[]>("get_all_monitors");
-      setMonitors(result ?? []);
+      const displayNameInfo = result?.map((m, idx) => ({
+        ...m,
+        display_name: `Monitor ${idx + 1}${m.is_primary ? " (Primary)" : ""}`,
+      }));
+      setMonitors(displayNameInfo ?? []);
     } catch (e) {
       setError((e as Error).message ?? String(e));
     } finally {
@@ -39,21 +43,7 @@ export function MonitorsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoading(true);
-        const result = await invoke<DisplayInfo[]>("get_all_monitors");
-        if (!cancelled) setMonitors(result ?? []);
-      } catch (e) {
-        if (!cancelled) setError((e as Error).message ?? String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    reloadMonitors();
   }, []);
 
   const value = useMemo(

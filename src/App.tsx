@@ -6,16 +6,6 @@ import { invoke } from "@tauri-apps/api/core";
 
 function App() {
   const { monitors, loading, error, setError } = useMonitorsContext();
-  const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
-    null
-  );
-  const selected = useMemo(
-    () =>
-      selectedDeviceName
-        ? monitors.find((m) => m.device_name === selectedDeviceName)
-        : monitors[0],
-    [monitors, selectedDeviceName]
-  );
 
   const handleIdentifyMonitors = useCallback(async () => {
     try {
@@ -27,52 +17,37 @@ function App() {
 
   return (
     <div className="app-root">
-      <div className="section">
-        <label className="label" htmlFor="monitor-select">
-          Monitor
-        </label>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <select
-            id="monitor-select"
-            className="select"
-            disabled={loading || monitors.length === 0}
-            value={selectedDeviceName ?? monitors[0]?.device_name ?? ""}
-            onChange={(e) => setSelectedDeviceName(e.target.value)}
-            style={{ flex: 1 }}
-          >
-            {monitors.map((m, idx) => (
-              <option value={m.device_name} key={m.device_name}>
-                {`Monitor ${idx + 1}${m.is_primary ? " (Primary)" : ""}`}
-              </option>
-            ))}
-          </select>
-          <button
-            className="identify-button"
-            onClick={handleIdentifyMonitors}
-            disabled={loading || monitors.length === 0}
-            title="Identify monitors by showing numbers on each screen"
-          >
-            🔍
-          </button>
-        </div>
-      </div>
-
       {error && <div className="error">{error}</div>}
 
-      <div className="section">
-        {loading && <div className="muted">Loading...</div>}
-        {!loading && !selected && (
-          <div className="muted">No monitors detected</div>
+      <div className="sections">
+        {loading && (
+          <div className="section">
+            <div className="muted">Loading...</div>
+          </div>
         )}
+        {!loading && monitors.length === 0 && (
+          <div className="section">
+            <div className="muted">No monitors detected</div>
+          </div>
+        )}
+        {monitors.map((monitor) => (
+          <div key={monitor.device_name}>
+            <div className="section-header">{monitor.display_name}</div>
+            <div className="section">
+              <MonitorControls
+                monitor={monitor}
+                disabled={loading}
+                onError={(msg) => setError(msg)}
+              />
+            </div>
+          </div>
+        ))}
+        <div className="section">
+          <div className="button" onClick={handleIdentifyMonitors}>
+            Identify Monitors
+          </div>
+        </div>
       </div>
-
-      {!loading && selected && (
-        <MonitorControls
-          monitor={selected}
-          disabled={loading}
-          onError={(msg) => setError(msg)}
-        />
-      )}
     </div>
   );
 }

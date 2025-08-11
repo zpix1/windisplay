@@ -1,6 +1,7 @@
 export type DisplayInfo = {
   device_name: string;
   friendly_name: string;
+  display_name: string;
   is_primary: boolean;
   position_x: number;
   position_y: number;

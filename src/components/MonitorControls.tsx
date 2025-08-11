@@ -15,21 +15,6 @@ export default function MonitorControls({
 }: MonitorControlsProps) {
   return (
     <>
-      <div className="section">
-        <div className="details">
-          <div className="row">
-            <span className="key">Resolution:</span>
-            <span className="value">
-              {monitor.current.width} × {monitor.current.height}
-            </span>
-          </div>
-          <div className="row">
-            <span className="key">Refresh rate:</span>
-            <span className="value">{monitor.current.refresh_hz} Hz</span>
-          </div>
-        </div>
-      </div>
-
       <BrightnessSlider
         deviceName={monitor.device_name}
         disabled={disabled}

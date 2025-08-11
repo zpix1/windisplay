@@ -88,7 +88,7 @@ export default function ResolutionSlider({
   const displayText = currentResolution ? currentResolution.text : "Resolution";
 
   return (
-    <div className="section">
+    <div className="field">
       <label className="label" htmlFor="resolution-slider">
         Resolution
       </label>

@@ -65,7 +65,7 @@ export default function BrightnessSlider({
   const throttledApply = useThrottle(apply, 50);
 
   return (
-    <div className="section">
+    <div className="field">
       <label className="label" htmlFor="brightness-range">
         Brightness
       </label>
