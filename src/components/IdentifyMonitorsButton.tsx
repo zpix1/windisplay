@@ -28,6 +28,7 @@ export default function IdentifyMonitorsButton({
   return (
     <TextToggle
       toggled={loading}
+      loading={loading}
       text={"Identify Monitors"}
       disabled={loading || disabled}
       icon={<SearchIcon />}
