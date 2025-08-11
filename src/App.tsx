@@ -1,55 +1,21 @@
 import "./App.css";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useMemo, useState } from "react";
 import MonitorControls from "./components/MonitorControls";
-import { DisplayInfo } from "./lib/Resolutions";
+import { useMonitorsContext } from "./context/MonitorsContext";
+import { invoke } from "@tauri-apps/api/core";
 
 function App() {
-  const [monitors, setMonitors] = useState<DisplayInfo[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState<number>(0);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoading(true);
-        const result = await invoke<DisplayInfo[]>("get_all_monitors");
-        if (!cancelled) {
-          setMonitors(result ?? []);
-          setSelectedIndex(0);
-        }
-      } catch (e) {
-        if (!cancelled) setError((e as Error).message ?? String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const selected = useMemo(
-    () => monitors[selectedIndex],
-    [monitors, selectedIndex]
+  const { monitors, loading, error, setError } = useMonitorsContext();
+  const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
+    null
   );
-
-  const handleResolutionChanged = useCallback(async () => {
-    // Refresh monitors after resolution change
-    try {
-      const result = await invoke<DisplayInfo[]>("get_all_monitors");
-      setMonitors(result ?? []);
-      // Keep selection on same device
-      const idx = (result ?? []).findIndex(
-        (m) => m.device_name === selected?.device_name
-      );
-      setSelectedIndex(idx >= 0 ? idx : 0);
-    } catch (e) {
-      setError((e as Error).message ?? String(e));
-    }
-  }, [selected?.device_name]);
+  const selected = useMemo(
+    () =>
+      selectedDeviceName
+        ? monitors.find((m) => m.device_name === selectedDeviceName)
+        : monitors[0],
+    [monitors, selectedDeviceName]
+  );
 
   const handleIdentifyMonitors = useCallback(async () => {
     try {
@@ -57,7 +23,7 @@ function App() {
     } catch (e) {
       setError((e as Error).message ?? String(e));
     }
-  }, []);
+  }, [setError]);
 
   return (
     <div className="app-root">
@@ -70,12 +36,12 @@ function App() {
             id="monitor-select"
             className="select"
             disabled={loading || monitors.length === 0}
-            value={selectedIndex}
-            onChange={(e) => setSelectedIndex(Number(e.target.value))}
+            value={selectedDeviceName ?? monitors[0]?.device_name ?? ""}
+            onChange={(e) => setSelectedDeviceName(e.target.value)}
             style={{ flex: 1 }}
           >
             {monitors.map((m, idx) => (
-              <option value={idx} key={m.device_name}>
+              <option value={m.device_name} key={m.device_name}>
                 {`Monitor ${idx + 1}${m.is_primary ? " (Primary)" : ""}`}
               </option>
             ))}
@@ -105,7 +71,6 @@ function App() {
           monitor={selected}
           disabled={loading}
           onError={(msg) => setError(msg)}
-          onResolutionChanged={handleResolutionChanged}
         />
       )}
     </div>

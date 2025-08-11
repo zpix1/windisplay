@@ -3,14 +3,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { Slider } from "./ui/Slider/Slider";
 import { ResolutionIcon } from "./ui/Slider/icons/ResolutionIcon";
 import { Resolution, getPopularResolutions } from "../lib/Resolutions";
+import { useMonitorsMutation } from "../hooks/useMonitorsMutation";
 
 type Props = {
   modes: Resolution[];
   current: Resolution | null;
   disabled?: boolean;
   deviceName: string | null;
-  onError?: (msg: string) => void;
-  onResolutionChanged?: () => void;
 };
 
 export default function ResolutionSlider({
@@ -18,9 +17,8 @@ export default function ResolutionSlider({
   current,
   disabled = false,
   deviceName,
-  onError,
-  onResolutionChanged,
 }: Props) {
+  const { mutation } = useMonitorsMutation();
   const popularResolutions = useMemo(
     () => getPopularResolutions(modes, current),
     [modes, current]
@@ -58,22 +56,14 @@ export default function ResolutionSlider({
     if (!deviceName || !popularResolutions[resolutionIndex]) return;
 
     const resolution = popularResolutions[resolutionIndex];
-    try {
-      await invoke("set_monitor_resolution", {
+    await mutation(() =>
+      invoke("set_monitor_resolution", {
         deviceName,
         width: resolution.width,
         height: resolution.height,
         refresh_hz: current?.refresh_hz || 60,
-      });
-
-      if (onResolutionChanged) {
-        onResolutionChanged();
-      }
-    } catch (e) {
-      if (onError) {
-        onError((e as Error).message ?? String(e));
-      }
-    }
+      })
+    );
   };
 
   // Convert slider value (0-100) to resolution index (reversed so 100% = best resolution)

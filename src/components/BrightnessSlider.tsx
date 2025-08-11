@@ -62,7 +62,7 @@ export default function BrightnessSlider({
     [deviceName, onError]
   );
 
-  const throttledApply = useThrottle(apply, 100); // Throttle to 100ms
+  const throttledApply = useThrottle(apply, 50);
 
   return (
     <div className="section">

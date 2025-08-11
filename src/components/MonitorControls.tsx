@@ -6,14 +6,12 @@ type MonitorControlsProps = {
   monitor: DisplayInfo;
   disabled?: boolean;
   onError?: (msg: string) => void;
-  onResolutionChanged?: () => void;
 };
 
 export default function MonitorControls({
   monitor,
   disabled = false,
   onError,
-  onResolutionChanged,
 }: MonitorControlsProps) {
   return (
     <>
@@ -43,8 +41,6 @@ export default function MonitorControls({
         current={monitor.current}
         disabled={disabled}
         deviceName={monitor.device_name}
-        onError={onError}
-        onResolutionChanged={onResolutionChanged}
       />
     </>
   );
