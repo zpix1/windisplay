@@ -467,7 +467,7 @@ async fn identify_monitors_windows(_app_handle: tauri::AppHandle) -> Result<(), 
     let monitors = get_all_monitors_windows()?;
 
     // Spawn a thread to handle the native windows
-    std::thread::spawn_blocking(move || {
+    std::thread::spawn(move || {
         // Register window class for overlay windows with unique name
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
