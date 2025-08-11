@@ -1,5 +1,6 @@
 import BrightnessSlider from "./BrightnessSlider";
 import ResolutionSlider from "./ResolutionSlider";
+import RefreshRateSlider from "./RefreshRateSlider";
 import { DisplayInfo } from "../lib/Resolutions";
 
 type MonitorControlsProps = {
@@ -26,6 +27,14 @@ export default function MonitorControls({
         current={monitor.current}
         disabled={disabled}
         deviceName={monitor.device_name}
+      />
+
+      <RefreshRateSlider
+        modes={monitor.modes}
+        current={monitor.current}
+        disabled={disabled}
+        deviceName={monitor.device_name}
+        onError={onError}
       />
     </>
   );

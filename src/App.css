@@ -1,5 +1,5 @@
 :root {
-  font-family: Roboto, sans-serif;
+  font-family: Segoe UIRoboto, sans-serif;
 }
 
 html,
@@ -7,6 +7,7 @@ body {
   background-color: #f1f1f1;
   padding: 0;
   margin: 0;
+  user-select: none;
 }
 
 * {
@@ -32,12 +33,16 @@ body {
   padding: 0 8px;
 }
 
+.field {
+  margin-bottom: 6px;
+}
+
 .label {
   margin-left: 6px;
+  margin-bottom: 4px;
   display: block;
   font-size: 14px;
   color: #848383;
-  margin-bottom: 6px;
 }
 
 .select {

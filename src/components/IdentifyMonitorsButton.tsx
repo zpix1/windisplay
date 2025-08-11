@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { SearchIcon } from "./ui/icons/SearchIcon";
+import { TextToggle } from "./ui/TextToggle/TextToggle";
 
 type IdentifyMonitorsButtonProps = {
   disabled?: boolean;
@@ -24,12 +26,11 @@ export default function IdentifyMonitorsButton({
   }, [onError]);
 
   return (
-    <button
-      className="button"
+    <TextToggle
+      toggled={loading}
+      text={"Identify Monitors"}
+      icon={<SearchIcon />}
       onClick={handleClick}
-      disabled={disabled || loading}
-    >
-      {loading ? "Identifying…" : "Identify Monitors"}
-    </button>
+    />
   );
 }
