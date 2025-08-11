@@ -384,104 +384,103 @@ fn identify_monitors_windows(_app_handle: tauri::AppHandle) -> Result<(), String
 
     let monitors = get_all_monitors_windows()?;
 
-    std::thread::spawn(move || {
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos();
-        let class_name = to_wide_null_terminated(&format!("MonitorIdentifierOverlay_{}", timestamp));
-        let mut wc: WNDCLASSW = unsafe { zeroed() };
-        wc.style = CS_HREDRAW | CS_VREDRAW;
-        wc.lpfnWndProc = Some(overlay_window_proc);
-        wc.hInstance = HINSTANCE(unsafe { GetModuleHandleW(None).unwrap_or_default().0 });
-        wc.hCursor = unsafe { LoadCursorW(None, IDC_ARROW).unwrap_or_default() };
-        wc.lpszClassName = windows::core::PCWSTR(class_name.as_ptr());
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let class_name = to_wide_null_terminated(&format!("MonitorIdentifierOverlay_{}", timestamp));
+    let mut wc: WNDCLASSW = unsafe { zeroed() };
+    wc.style = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc = Some(overlay_window_proc);
+    wc.hInstance = HINSTANCE(unsafe { GetModuleHandleW(None).unwrap_or_default().0 });
+    wc.hCursor = unsafe { LoadCursorW(None, IDC_ARROW).unwrap_or_default() };
+    wc.lpszClassName = windows::core::PCWSTR(class_name.as_ptr());
 
-        unsafe {
-            if RegisterClassW(&wc) == 0 {
-                return;
-            }
+    unsafe {
+        if RegisterClassW(&wc) == 0 {
+            // Could not register the class; behave as a no-op
+            return Ok(());
         }
+    }
 
-        let mut overlay_windows = Vec::new();
+    let mut overlay_windows = Vec::new();
 
-        for (index, monitor) in monitors.iter().enumerate() {
-            let monitor_number = index + 1;
-            let window_title = to_wide_null_terminated(&format!("Monitor {} Overlay", monitor_number));
+    for (index, monitor) in monitors.iter().enumerate() {
+        let monitor_number = index + 1;
+        let window_title = to_wide_null_terminated(&format!("Monitor {} Overlay", monitor_number));
 
-            let hwnd = unsafe {
-                CreateWindowExW(
-                    WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW,
-                    windows::core::PCWSTR(class_name.as_ptr()),
-                    windows::core::PCWSTR(window_title.as_ptr()),
-                    WS_POPUP,
-                    monitor.position_x,
-                    monitor.position_y,
-                    monitor.current.width as i32,
-                    monitor.current.height as i32,
-                    HWND(0),
-                    None,
-                    GetModuleHandleW(None).unwrap_or_default(),
-                    Some(Box::into_raw(Box::new(monitor_number)) as *const core::ffi::c_void),
-                )
-            };
-
-            if hwnd.0 == 0 {
-                continue;
-            }
-
-            unsafe {
-                SetLayeredWindowAttributes(hwnd, COLORREF(0), 150, LWA_ALPHA);
-                SetWindowPos(
-                    hwnd,
-                    HWND_TOPMOST,
-                    0,
-                    0,
-                    0,
-                    0,
-                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
-                );
-                ShowWindow(hwnd, SW_SHOW);
-                SetTimer(hwnd, 1, 2000, None);
-            }
-
-            overlay_windows.push(hwnd);
-        }
-
-        let mut msg: MSG = unsafe { zeroed() };
-        let mut windows_active = true;
-        while windows_active {
-            if unsafe { PeekMessageW(&mut msg, HWND(0), 0, 0, PM_REMOVE) }.as_bool() {
-                unsafe {
-                    TranslateMessage(&msg);
-                    DispatchMessageW(&msg);
-                }
-                if msg.message == WM_QUIT {
-                    windows_active = false;
-                }
-            } else {
-                let mut any_alive = false;
-                for &window in &overlay_windows {
-                    if unsafe { IsWindow(window) }.as_bool() {
-                        any_alive = true;
-                        break;
-                    }
-                }
-                if !any_alive {
-                    windows_active = false;
-                } else {
-                    std::thread::sleep(std::time::Duration::from_millis(10));
-                }
-            }
-        }
-
-        unsafe {
-            UnregisterClassW(
+        let hwnd = unsafe {
+            CreateWindowExW(
+                WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW,
                 windows::core::PCWSTR(class_name.as_ptr()),
+                windows::core::PCWSTR(window_title.as_ptr()),
+                WS_POPUP,
+                monitor.position_x,
+                monitor.position_y,
+                monitor.current.width as i32,
+                monitor.current.height as i32,
+                HWND(0),
+                None,
                 GetModuleHandleW(None).unwrap_or_default(),
-            );
+                Some(Box::into_raw(Box::new(monitor_number)) as *const core::ffi::c_void),
+            )
+        };
+
+        if hwnd.0 == 0 {
+            continue;
         }
-    });
+
+        unsafe {
+            SetLayeredWindowAttributes(hwnd, COLORREF(0), 150, LWA_ALPHA);
+            SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            );
+            ShowWindow(hwnd, SW_SHOW);
+            SetTimer(hwnd, 1, 2000, None);
+        }
+
+        overlay_windows.push(hwnd);
+    }
+
+    let mut msg: MSG = unsafe { zeroed() };
+    let mut windows_active = true;
+    while windows_active {
+        if unsafe { PeekMessageW(&mut msg, HWND(0), 0, 0, PM_REMOVE) }.as_bool() {
+            unsafe {
+                TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+            if msg.message == WM_QUIT {
+                windows_active = false;
+            }
+        } else {
+            let mut any_alive = false;
+            for &window in &overlay_windows {
+                if unsafe { IsWindow(window) }.as_bool() {
+                    any_alive = true;
+                    break;
+                }
+            }
+            if !any_alive {
+                windows_active = false;
+            } else {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+        }
+    }
+
+    unsafe {
+        UnregisterClassW(
+            windows::core::PCWSTR(class_name.as_ptr()),
+            GetModuleHandleW(None).unwrap_or_default(),
+        );
+    }
 
     Ok(())
 }
