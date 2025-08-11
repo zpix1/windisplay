@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useThrottle } from "../hooks/useDebouncedCallback";
 import { Slider } from "./ui/Slider/Slider";
-import { BrightnessIcon } from "./ui/Slider/icons/BrightnessIcon";
+import { BrightnessIcon } from "./ui/icons/BrightnessIcon";
 
 type Props = {
   deviceName: string | null;

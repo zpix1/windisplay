@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Slider } from "./ui/Slider/Slider";
-import { ResolutionIcon } from "./ui/Slider/icons/ResolutionIcon";
+import { ResolutionIcon } from "./ui/icons/ResolutionIcon";
 import { Resolution, getPopularResolutions } from "../lib/Resolutions";
 import { useMonitorsMutation } from "../hooks/useMonitorsMutation";
 

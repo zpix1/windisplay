@@ -1,0 +1,58 @@
+.selector {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 0;
+  background: #f3f3f3;
+  border: 1px solid #d0d0d0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.selector:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(76, 111, 255, 0.25);
+}
+
+.selector-disabled {
+  opacity: 0.6;
+}
+
+.selector-segment {
+  background: transparent;
+  border: none;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  min-height: 36px;
+  font-size: 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.selector-segment:disabled {
+  cursor: not-allowed;
+}
+
+.segment-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selector-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: #ffffff;
+  box-shadow: inset 0 0 0 1px #d0d0d0;
+  transition: transform 150ms ease, width 150ms ease;
+  border-radius: 10px;
+  will-change: transform;
+}
+
+
