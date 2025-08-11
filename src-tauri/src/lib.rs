@@ -1,4 +1,7 @@
 mod displays;
+#[cfg(target_os = "windows")]
+mod winDisplays;
+mod fakeDisplays;
 mod positioning;
 
 pub fn run() {
