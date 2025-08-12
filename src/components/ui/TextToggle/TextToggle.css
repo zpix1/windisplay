@@ -27,12 +27,29 @@
     justify-content: center;
 }
 
+/* Variant: no rounded background behind the icon */
+.text-toggle.no-icon-bg .icon {
+    background-color: transparent;
+    border-radius: 0;
+    padding: 0;
+}
+
+.text-toggle .text {
+    flex-grow: 1;
+}
+
 .text-toggle:hover .icon {
     background-color: #BEBEBE;
 }
 
 .text-toggle.toggled .icon {
     background-color: #5688EE;
+}
+
+/* Ensure no background on hover/toggled when no-icon-bg is set */
+.text-toggle.no-icon-bg:hover .icon,
+.text-toggle.no-icon-bg.toggled .icon {
+    background-color: transparent;
 }
 
 .text-toggle.toggled .icon svg {

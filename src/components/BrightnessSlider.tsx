@@ -10,11 +10,7 @@ type Props = {
   onError?: (msg: string) => void;
 };
 
-export default function BrightnessSlider({
-  deviceName,
-  disabled,
-  onError,
-}: Props) {
+export function BrightnessSlider({ deviceName, disabled, onError }: Props) {
   const [pct, setPct] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
 

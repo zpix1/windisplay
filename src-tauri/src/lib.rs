@@ -16,6 +16,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             displays::get_all_monitors,
             displays::set_monitor_resolution,
+             displays::set_monitor_orientation,
             displays::get_monitor_brightness,
             displays::set_monitor_brightness,
             displays::identify_monitors,

@@ -1,7 +1,8 @@
-import BrightnessSlider from "./BrightnessSlider";
-import ResolutionSlider from "./ResolutionSlider";
-import RefreshRateSlider from "./RefreshRateSlider";
-import { DisplayInfo } from "../lib/Resolutions";
+import { BrightnessSlider } from "./BrightnessSlider";
+import { ResolutionSlider } from "./ResolutionSlider";
+import { RefreshRateSlider } from "./RefreshRateSlider";
+import { aspectKey, DisplayInfo } from "../lib/Resolutions";
+import { OrientationSelector } from "./OrientationTextToggle";
 
 type MonitorControlsProps = {
   monitor: DisplayInfo;
@@ -27,6 +28,7 @@ export default function MonitorControls({
         current={monitor.current}
         disabled={disabled}
         deviceName={monitor.device_name}
+        orientationDegrees={monitor.orientation}
       />
 
       <RefreshRateSlider
@@ -34,6 +36,17 @@ export default function MonitorControls({
         current={monitor.current}
         disabled={disabled}
         deviceName={monitor.device_name}
+        onError={onError}
+      />
+
+      <OrientationSelector
+        deviceName={monitor.device_name}
+        orientation={monitor.orientation}
+        aspectRatioKey={aspectKey(
+          monitor.current.width,
+          monitor.current.height
+        )}
+        disabled={disabled}
         onError={onError}
       />
     </>

@@ -23,6 +23,7 @@ impl Displays for FakeDisplays {
                 is_primary: i == 0,
                 position_x: (i as i32) * 1920,
                 position_y: 0,
+                orientation: 0,
                 current: modes[0].clone(),
                 modes: modes.clone(),
             })
@@ -50,6 +51,10 @@ impl Displays for FakeDisplays {
     }
 
     fn identify_monitors(&self, _app_handle: tauri::AppHandle) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn set_monitor_orientation(&self, _device_name: String, _orientation_degrees: u32) -> Result<(), String> {
         Ok(())
     }
 }

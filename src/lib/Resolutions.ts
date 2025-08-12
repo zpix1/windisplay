@@ -5,6 +5,7 @@ export type DisplayInfo = {
   is_primary: boolean;
   position_x: number;
   position_y: number;
+  orientation: number; // degrees: 0, 90, 180, 270
   current: Resolution;
   modes: Resolution[];
 };
@@ -34,7 +35,7 @@ function gcd(a: number, b: number): number {
   return Math.abs(a);
 }
 
-function aspectKey(w: number, h: number): string {
+export function aspectKey(w: number, h: number): string {
   const g = gcd(w, h) || 1;
   return `${Math.floor(w / g)}:${Math.floor(h / g)}`;
 }
@@ -49,8 +50,11 @@ function labelForStandard(w: number, h: number): string | null {
 
 export function getPopularResolutions(
   modes: Resolution[],
-  current: Resolution | null
+  current: Resolution | null,
+  orientationDegrees?: number | null
 ): PopularResolution[] {
+  const isPortrait = (orientationDegrees ?? 0) % 180 === 90;
+
   // dedupe by width x height
   const uniq = new Map<
     string,
@@ -63,16 +67,27 @@ export function getPopularResolutions(
   }
   const items = Array.from(uniq.values());
 
-  const currentAspect = current
-    ? aspectKey(current.width, current.height)
-    : null;
+  // Normalize for aspect comparison regardless of orientation
+  const normalizeForAspect = (w: number, h: number) => {
+    // order as landscape for aspect ratio comparisons/labels
+    return w >= h ? [w, h] : [h, w];
+  };
+
+  const [curW, curH] = current
+    ? normalizeForAspect(current.width, current.height)
+    : [null, null];
+  const currentAspect = curW && curH ? aspectKey(curW, curH) : null;
 
   const scored = items.map((it) => {
+    const [w, h] = normalizeForAspect(it.width, it.height);
     const isAspectMatch = currentAspect
-      ? aspectKey(it.width, it.height) === currentAspect
+      ? aspectKey(w, h) === currentAspect
       : false;
-    const stdLabel = labelForStandard(it.width, it.height);
-    const isPopular = Boolean(isAspectMatch && stdLabel);
+    const stdLabel = labelForStandard(w, h);
+    const orientationMatches = isPortrait
+      ? it.height >= it.width
+      : it.width >= it.height;
+    const isPopular = Boolean(isAspectMatch && stdLabel && orientationMatches);
     return {
       ...it,
       isPopular,

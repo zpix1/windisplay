@@ -34,6 +34,10 @@ impl Displays for WinDisplays {
     fn identify_monitors(&self, app_handle: tauri::AppHandle) -> Result<(), String> {
         identify_monitors_windows(app_handle)
     }
+
+    fn set_monitor_orientation(&self, device_name: String, orientation_degrees: u32) -> Result<(), String> {
+        set_monitor_orientation_windows(device_name, orientation_degrees)
+    }
 }
 
 fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
@@ -98,6 +102,16 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             refresh_hz: current_mode.dmDisplayFrequency as u32,
         };
 
+        // Orientation is exposed by dmDisplayOrientation (0,1,2,3) which maps to 0,90,180,270 degrees.
+        use windows::Win32::Graphics::Gdi::{DMDO_180, DMDO_270, DMDO_90, DMDO_DEFAULT};
+        let orientation_degrees: u32 = match unsafe { current_mode.Anonymous1.Anonymous2.dmDisplayOrientation } {
+            DMDO_DEFAULT => 0,
+            DMDO_90 => 90,
+            DMDO_180 => 180,
+            DMDO_270 => 270,
+            _ => 0,
+        };
+
         let mut modes: Vec<Resolution> = Vec::new();
         let mut mode_index: u32 = 0;
         loop {
@@ -141,6 +155,7 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             is_primary,
             position_x: pos_x,
             position_y: pos_y,
+            orientation: orientation_degrees,
             current,
             modes,
         });
@@ -230,6 +245,76 @@ fn set_monitor_resolution_windows(
     }
 }
 
+fn set_monitor_orientation_windows(device_name: String, orientation_degrees: u32) -> Result<(), String> {
+    use std::mem::{size_of, zeroed};
+    use windows::Win32::Foundation::BOOL;
+    use windows::Win32::Graphics::Gdi::{
+        ChangeDisplaySettingsExW, EnumDisplaySettingsExW, DEVMODEW, DISP_CHANGE_SUCCESSFUL,
+        DM_DISPLAYORIENTATION, DM_PELSWIDTH, DM_PELSHEIGHT,
+    };
+
+    let mut dm: DEVMODEW = unsafe { zeroed() };
+    dm.dmSize = size_of::<DEVMODEW>() as u16;
+    let wide = to_wide_null_terminated(&device_name);
+    let ok: BOOL = unsafe {
+        EnumDisplaySettingsExW(
+            windows::core::PCWSTR(wide.as_ptr()),
+            windows::Win32::Graphics::Gdi::ENUM_CURRENT_SETTINGS,
+            &mut dm,
+            windows::Win32::Graphics::Gdi::ENUM_DISPLAY_SETTINGS_FLAGS(0),
+        )
+    };
+    if !ok.as_bool() {
+        return Err("Failed to read current display settings".to_string());
+    }
+
+    // Map degrees -> DMDO_* (0,1,2,3)
+    let dmdo_value: u32 = match orientation_degrees % 360 {
+        0 => 0,
+        90 => 1,
+        180 => 2,
+        270 => 3,
+        other => return Err(format!("Unsupported orientation degrees: {} (must be 0/90/180/270)", other)),
+    };
+
+    // Windows expects width/height swapped for 90/270 if not already
+    let is_rotated = dmdo_value == 1 || dmdo_value == 3;
+    use windows::Win32::Graphics::Gdi::{DMDO_270, DMDO_90};
+    let cur_orient = unsafe { dm.Anonymous1.Anonymous2.dmDisplayOrientation };
+    let cur_is_rotated = cur_orient == DMDO_90 || cur_orient == DMDO_270;
+    if is_rotated != cur_is_rotated {
+        // swap width/height to keep content visible
+        let tmp = dm.dmPelsWidth;
+        dm.dmPelsWidth = dm.dmPelsHeight;
+        dm.dmPelsHeight = tmp;
+    }
+
+    unsafe {
+        use windows::Win32::Graphics::Gdi::{DMDO_180, DMDO_270, DMDO_90, DMDO_DEFAULT};
+        dm.Anonymous1.Anonymous2.dmDisplayOrientation = match dmdo_value {
+            0 => DMDO_DEFAULT,
+            1 => DMDO_90,
+            2 => DMDO_180,
+            3 => DMDO_270,
+            _ => DMDO_DEFAULT,
+        };
+    }
+
+    // Ensure the fields are marked as valid
+    dm.dmFields |= DM_DISPLAYORIENTATION | DM_PELSWIDTH | DM_PELSHEIGHT;
+
+    let status = unsafe {
+        ChangeDisplaySettingsExW(
+            windows::core::PCWSTR(wide.as_ptr()),
+            Some(&mut dm),
+            None,
+            windows::Win32::Graphics::Gdi::CDS_TYPE(0),
+            None,
+        )
+    };
+
+    if status == DISP_CHANGE_SUCCESSFUL { Ok(()) } else { Err(format!("ChangeDisplaySettingsExW failed with code: {:?}", status)) }
+}
 fn find_hmonitor_by_device_name(
     device_name: &str,
 ) -> Option<windows::Win32::Graphics::Gdi::HMONITOR> {

@@ -13,7 +13,7 @@ type Props = {
   onError?: (msg: string) => void;
 };
 
-export default function RefreshRateSlider({
+export function RefreshRateSlider({
   modes,
   current,
   disabled = false,

@@ -15,6 +15,8 @@ pub struct DisplayInfo {
     pub is_primary: bool,
     pub position_x: i32,
     pub position_y: i32,
+    // Orientation in degrees: 0, 90, 180, 270
+    pub orientation: u32,
     pub current: Resolution,
     pub modes: Vec<Resolution>,
 }
@@ -35,6 +37,8 @@ pub trait Displays {
         height: u32,
         refresh_hz: Option<u32>,
     ) -> Result<(), String>;
+    fn set_monitor_orientation(&self, device_name: String, orientation_degrees: u32)
+        -> Result<(), String>;
     fn get_monitor_brightness(&self, device_name: String) -> Result<BrightnessInfo, String>;
     fn set_monitor_brightness(&self, device_name: String, percent: u32) -> Result<(), String>;
     fn identify_monitors(&self, app_handle: tauri::AppHandle) -> Result<(), String>;
@@ -69,6 +73,11 @@ pub fn set_monitor_resolution(
     refresh_hz: Option<u32>,
 ) -> Result<(), String> {
     active_provider().set_monitor_resolution(device_name, width, height, refresh_hz)
+}
+
+#[tauri::command]
+pub fn set_monitor_orientation(device_name: String, orientation_degrees: u32) -> Result<(), String> {
+    active_provider().set_monitor_orientation(device_name, orientation_degrees)
 }
 
 #[tauri::command]
