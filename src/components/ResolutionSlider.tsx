@@ -11,6 +11,7 @@ type Props = {
   disabled?: boolean;
   deviceName: string | null;
   orientationDegrees?: number | null;
+  maxNative?: Resolution | null;
 };
 
 export function ResolutionSlider({
@@ -19,11 +20,12 @@ export function ResolutionSlider({
   disabled = false,
   deviceName,
   orientationDegrees,
+  maxNative,
 }: Props) {
   const { mutation } = useMonitorsMutation();
   const popularResolutions = useMemo(
-    () => getPopularResolutions(modes, current, orientationDegrees),
-    [modes, current, orientationDegrees]
+    () => getPopularResolutions(modes, orientationDegrees, maxNative),
+    [modes, orientationDegrees, maxNative]
   );
 
   // Map popular resolutions to sticky points (0-100 scale)

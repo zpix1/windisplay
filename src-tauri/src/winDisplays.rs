@@ -40,6 +40,34 @@ impl Displays for WinDisplays {
     }
 }
 
+// Attempt to fetch a preferred/native mode using registry-stored settings for the device.
+// This typically reflects the monitor's native timing chosen by Windows on first connect.
+fn query_preferred_native_resolution(device_name: &str) -> Option<(u32, u32)> {
+    use std::mem::{size_of, zeroed};
+    use windows::Win32::Foundation::BOOL;
+    use windows::Win32::Graphics::Gdi::{EnumDisplaySettingsExW, DEVMODEW, ENUM_REGISTRY_SETTINGS};
+
+    let mut dm: DEVMODEW = unsafe { zeroed() };
+    dm.dmSize = size_of::<DEVMODEW>() as u16;
+    let wide = to_wide_null_terminated(device_name);
+    let ok: BOOL = unsafe {
+        EnumDisplaySettingsExW(
+            windows::core::PCWSTR(wide.as_ptr()),
+            ENUM_REGISTRY_SETTINGS,
+            &mut dm,
+            windows::Win32::Graphics::Gdi::ENUM_DISPLAY_SETTINGS_FLAGS(0),
+        )
+    };
+    if ok.as_bool() {
+        let w = dm.dmPelsWidth as u32;
+        let h = dm.dmPelsHeight as u32;
+        if w > 0 && h > 0 {
+            return Some((w, h));
+        }
+    }
+    None
+}
+
 fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
     use std::mem::{size_of, zeroed};
     use windows::Win32::Foundation::BOOL;
@@ -149,6 +177,28 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             mode_index += 1;
         }
 
+        // Prefer OS-reported preferred/native mode via DisplayConfig; fall back to largest area mode
+        let max_native = if let Some((nw, nh)) = query_preferred_native_resolution(&device_name) {
+            // Pick the highest refresh for the preferred width/height among available modes
+            modes
+                .iter()
+                .filter(|m| m.width == nw && m.height == nh)
+                .cloned()
+                .max_by_key(|m| m.refresh_hz)
+                .unwrap_or(Resolution {
+                    width: nw,
+                    height: nh,
+                    bits_per_pixel: current.bits_per_pixel,
+                    refresh_hz: current.refresh_hz,
+                })
+        } else {
+            modes
+                .iter()
+                .cloned()
+                .max_by_key(|m| (m.width as u64) * (m.height as u64))
+                .unwrap_or_else(|| current.clone())
+        };
+
         displays.push(DisplayInfo {
             device_name,
             friendly_name,
@@ -158,6 +208,7 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             orientation: orientation_degrees,
             current,
             modes,
+            max_native,
         });
 
         device_index += 1;

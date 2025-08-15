@@ -8,6 +8,7 @@ export type DisplayInfo = {
   orientation: number; // degrees: 0, 90, 180, 270
   current: Resolution;
   modes: Resolution[];
+  max_native: Resolution;
 };
 
 export type Resolution = {
@@ -50,17 +51,24 @@ function labelForStandard(w: number, h: number): string | null {
 
 export function getPopularResolutions(
   modes: Resolution[],
-  current: Resolution | null,
-  orientationDegrees?: number | null
+  orientationDegrees?: number | null,
+  maxNative?: Resolution | null
 ): PopularResolution[] {
   const isPortrait = (orientationDegrees ?? 0) % 180 === 90;
+
+  // Filter out modes exceeding the monitor's native pixel area (e.g., DSR/virtual super-resolutions)
+  const usableModes = (() => {
+    if (!maxNative) return modes;
+    const maxArea = maxNative.width * maxNative.height;
+    return modes.filter((m) => m.width * m.height <= maxArea);
+  })();
 
   // dedupe by width x height
   const uniq = new Map<
     string,
     { key: string; width: number; height: number }
   >();
-  for (const m of modes) {
+  for (const m of usableModes) {
     const key = `${m.width}x${m.height}`;
     if (!uniq.has(key))
       uniq.set(key, { key, width: m.width, height: m.height });
@@ -73,15 +81,16 @@ export function getPopularResolutions(
     return w >= h ? [w, h] : [h, w];
   };
 
-  const [curW, curH] = current
-    ? normalizeForAspect(current.width, current.height)
-    : [null, null];
-  const currentAspect = curW && curH ? aspectKey(curW, curH) : null;
+  // Use max/native resolution's aspect as the target aspect
+  const [maxW, maxH] = maxNative
+    ? normalizeForAspect(maxNative.width, maxNative.height)
+    : ([null, null] as unknown as [number | null, number | null]);
+  const targetAspect = maxW && maxH ? aspectKey(maxW, maxH) : null;
 
   const scored = items.map((it) => {
     const [w, h] = normalizeForAspect(it.width, it.height);
-    const isAspectMatch = currentAspect
-      ? aspectKey(w, h) === currentAspect
+    const isAspectMatch = targetAspect
+      ? aspectKey(w, h) === targetAspect
       : false;
     const stdLabel = labelForStandard(w, h);
     const orientationMatches = isPortrait
@@ -97,9 +106,27 @@ export function getPopularResolutions(
   });
 
   // Filter only popular resolutions and sort by area (desc)
-  const popularResolutions = scored
+  let popularResolutions = scored
     .filter((s) => s.isPopular)
     .sort((a, b) => b.area - a.area);
+
+  // Ensure the native/max resolution is present even if it lacks a std label
+  if (maxNative) {
+    const nativeKey = `${maxNative.width}x${maxNative.height}`;
+    const hasNative = popularResolutions.some((s) => s.key === nativeKey);
+    if (!hasNative) {
+      const stdLabel = labelForStandard(maxNative.width, maxNative.height);
+      popularResolutions.push({
+        key: nativeKey,
+        width: maxNative.width,
+        height: maxNative.height,
+        isPopular: true,
+        stdLabel,
+        area: maxNative.width * maxNative.height,
+      });
+      popularResolutions = popularResolutions.sort((a, b) => b.area - a.area);
+    }
+  }
 
   return popularResolutions.map((s) => ({
     key: s.key,

@@ -26,6 +26,11 @@ impl Displays for FakeDisplays {
                 orientation: 0,
                 current: modes[0].clone(),
                 modes: modes.clone(),
+                max_native: modes
+                    .iter()
+                    .cloned()
+                    .max_by_key(|m| (m.width as u64) * (m.height as u64))
+                    .unwrap_or_else(|| modes[0].clone()),
             })
             .collect();
 

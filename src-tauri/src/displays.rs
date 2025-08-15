@@ -19,6 +19,7 @@ pub struct DisplayInfo {
     pub orientation: u32,
     pub current: Resolution,
     pub modes: Vec<Resolution>,
+    pub max_native: Resolution,
 }
 
 #[derive(Debug, Serialize, Clone)]

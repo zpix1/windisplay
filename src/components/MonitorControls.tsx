@@ -29,6 +29,7 @@ export default function MonitorControls({
         disabled={disabled}
         deviceName={monitor.device_name}
         orientationDegrees={monitor.orientation}
+        maxNative={monitor.max_native}
       />
 
       <RefreshRateSlider
