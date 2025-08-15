@@ -39,6 +39,7 @@ impl Displays for FakeDisplays {
                 connection: String::new(),
                 built_in: false,
                 active: false,
+                scale: if i == 0 { 1.25 } else { 1.0 },
             })
             .collect();
 
@@ -68,6 +69,10 @@ impl Displays for FakeDisplays {
     }
 
     fn set_monitor_orientation(&self, _device_name: String, _orientation_degrees: u32) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn set_monitor_scale(&self, _device_name: String, _scale_percent: u32) -> Result<(), String> {
         Ok(())
     }
 }

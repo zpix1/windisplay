@@ -41,6 +41,12 @@ impl Displays for WinDisplays {
     fn set_monitor_orientation(&self, device_name: String, orientation_degrees: u32) -> Result<(), String> {
         set_monitor_orientation_windows(device_name, orientation_degrees)
     }
+
+    fn set_monitor_scale(&self, _device_name: String, _scale_percent: u32) -> Result<(), String> {
+        // There is no supported public API to programmatically change per-monitor DPI scaling
+        // without requiring user sign-out/restart. We choose to surface this as unsupported.
+        Err("Changing display scale is not supported on Windows by this app".to_string())
+    }
 }
 
 // Attempt to fetch a preferred/native mode using registry-stored settings for the device.
@@ -201,8 +207,8 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         }
 
         let device_name = widestr_to_string(&dd.DeviceName);
-        let friendly_name = widestr_to_string(&dd.DeviceString);
-        let dd_device_id = widestr_to_string(&dd.DeviceID);
+        let mut friendly_name = widestr_to_string(&dd.DeviceString);
+        let mut dd_device_id = widestr_to_string(&dd.DeviceID);
         let is_primary = (state & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
 
         let mut current_mode: DEVMODEW = unsafe { zeroed() };
@@ -304,6 +310,30 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
                 .unwrap_or_else(|| current.clone())
         };
 
+        // Try to get the actual monitor device (e.g., \\.\n+        // DISPLAY1\Monitor0) to use its friendly name and DeviceID for EDID matching.
+        // The top-level DISPLAY_DEVICE often represents the adapter, not the monitor.
+        unsafe {
+            let mut mon: DISPLAY_DEVICEW = zeroed();
+            mon.cb = size_of::<DISPLAY_DEVICEW>() as u32;
+            // Query the first monitor associated with this display device
+            let ok_mon = EnumDisplayDevicesW(
+                windows::core::PCWSTR(to_wide_null_terminated(&device_name).as_ptr()),
+                0,
+                &mut mon,
+                0,
+            );
+            if ok_mon.as_bool() {
+                let mon_name = widestr_to_string(&mon.DeviceString);
+                if !mon_name.is_empty() {
+                    friendly_name = mon_name;
+                }
+                let mon_id = widestr_to_string(&mon.DeviceID);
+                if !mon_id.is_empty() {
+                    dd_device_id = mon_id;
+                }
+            }
+        }
+
         // Choose EDID metadata for this monitor (best-effort matching)
         let mut model: String = String::new();
         let mut manufacturer: String = String::new();
@@ -314,19 +344,45 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         let mut built_in: bool = false;
         let mut active: bool = false;
 
-        // Try to match by model/manufacturer presence in friendly name or device id
+        // Try to match using stable identifiers first (WMI InstanceName vs monitor DeviceID),
+        // then fall back to model/manufacturer presence.
         let friendly_l = to_lower(&friendly_name);
         let devid_l = to_lower(&dd_device_id);
         let mut chosen_idx: Option<usize> = None;
+        // 1) Prefer exact-ish match using InstanceName fragment (e.g., VENDOR+PRODUCT)
         for (idx, e) in edid_entries.iter().enumerate() {
             if used_edid[idx] { continue; }
-            let mdl = to_lower(&e.Model);
-            let mfr = to_lower(&e.Manufacturer);
-            if (!mdl.is_empty() && (friendly_l.contains(&mdl) || devid_l.contains(&mdl)))
-                || (!mfr.is_empty() && (friendly_l.contains(&mfr) || devid_l.contains(&mfr)))
-            {
-                chosen_idx = Some(idx);
-                break;
+            if let Some(inst) = &e.InstanceName {
+                let inst_l = to_lower(inst);
+                // Some DeviceIDs start with MONITOR\\, others with DISPLAY\\. Compare loosely.
+                if !inst_l.is_empty() && (devid_l.contains(&inst_l) || inst_l.contains(&devid_l)) {
+                    chosen_idx = Some(idx);
+                    break;
+                }
+                // Also try matching the vendor+product fragment (between first and second backslashes)
+                if let Some(pos1) = inst_l.find('\\') {
+                    if let Some(rest) = inst_l.get(pos1+1..) {
+                        let frag = match rest.find('\\') { Some(p) => &rest[..p], None => rest };
+                        if !frag.is_empty() && devid_l.contains(frag) {
+                            chosen_idx = Some(idx);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        // 2) Fallback: match by model/manufacturer presence
+        if chosen_idx.is_none() {
+            for (idx, e) in edid_entries.iter().enumerate() {
+                if used_edid[idx] { continue; }
+                let mdl = to_lower(&e.Model);
+                let mfr = to_lower(&e.Manufacturer);
+                if (!mdl.is_empty() && (friendly_l.contains(&mdl) || devid_l.contains(&mdl)))
+                    || (!mfr.is_empty() && (friendly_l.contains(&mfr) || devid_l.contains(&mfr)))
+                {
+                    chosen_idx = Some(idx);
+                    break;
+                }
             }
         }
         // Fallback: assign by display index order
@@ -373,6 +429,9 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             active = e.Active.unwrap_or(false);
         }
 
+        // Determine per-monitor scaling (DPI / 96)
+        let scale_factor: f32 = get_monitor_scale_for_device(&device_name);
+
         displays.push(DisplayInfo {
             device_name,
             friendly_name,
@@ -391,6 +450,7 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             connection,
             built_in,
             active,
+            scale: scale_factor,
         });
 
         device_index += 1;
@@ -670,6 +730,47 @@ fn set_monitor_brightness_windows(device_name: String, percent: u32) -> Result<(
         }
         Ok(())
     })
+}
+
+fn get_monitor_scale_for_device(device_name: &str) -> f32 {
+    // Try modern per-monitor DPI (Windows 8.1+)
+    #[allow(unused_mut)]
+    let mut scale: f32 = 1.0;
+    #[cfg(windows)]
+    {
+        use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
+        if let Some(hmon) = find_hmonitor_by_device_name(device_name) {
+            let mut dpi_x: u32 = 0;
+            let mut dpi_y: u32 = 0;
+            // SAFETY: API fills the provided pointers
+            if unsafe { GetDpiForMonitor(hmon, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) }.is_ok()
+                && dpi_x > 0
+            {
+                scale = (dpi_x as f32) / 96.0;
+                return scale.max(0.5).min(4.0);
+            }
+        }
+        // Fallback: query device context LOGPIXELSX for the specific device
+        use windows::Win32::Graphics::Gdi::{CreateDCW, DeleteDC, GetDeviceCaps, LOGPIXELSX};
+        let wide = to_wide_null_terminated(device_name);
+        let hdc = unsafe {
+            CreateDCW(
+                windows::core::PCWSTR(wide.as_ptr()),
+                windows::core::PCWSTR(wide.as_ptr()),
+                None,
+                None,
+            )
+        };
+        if !hdc.is_invalid() {
+            let dpi = unsafe { GetDeviceCaps(hdc, LOGPIXELSX) } as i32;
+            unsafe { DeleteDC(hdc) };
+            if dpi > 0 {
+                scale = (dpi as f32) / 96.0;
+                return scale.max(0.5).min(4.0);
+            }
+        }
+    }
+    scale
 }
 
 fn widestr_to_string(buf: &[u16]) -> String {

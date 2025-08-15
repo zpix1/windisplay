@@ -3,6 +3,7 @@ import { ResolutionSlider } from "./ResolutionSlider";
 import { RefreshRateSlider } from "./RefreshRateSlider";
 import { aspectKey, DisplayInfo } from "../lib/Resolutions";
 import { OrientationSelector } from "./OrientationTextToggle";
+import { ScaleSlider } from "./ScaleSlider.tsx";
 
 type MonitorControlsProps = {
   monitor: DisplayInfo;
@@ -37,6 +38,13 @@ export default function MonitorControls({
         current={monitor.current}
         disabled={disabled}
         deviceName={monitor.device_name}
+        onError={onError}
+      />
+
+      <ScaleSlider
+        deviceName={monitor.device_name}
+        currentScale={monitor.scale}
+        disabled={true}
         onError={onError}
       />
 

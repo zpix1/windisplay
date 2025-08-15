@@ -17,6 +17,7 @@ export type DisplayInfo = {
   connection: string;
   built_in: boolean;
   active: boolean;
+  scale: number;
 };
 
 export type Resolution = {

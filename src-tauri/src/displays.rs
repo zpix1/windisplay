@@ -52,6 +52,7 @@ pub trait Displays {
     fn get_monitor_brightness(&self, device_name: String) -> Result<BrightnessInfo, String>;
     fn set_monitor_brightness(&self, device_name: String, percent: u32) -> Result<(), String>;
     fn identify_monitors(&self, app_handle: tauri::AppHandle) -> Result<(), String>;
+    fn set_monitor_scale(&self, device_name: String, scale_percent: u32) -> Result<(), String>;
 }
 
 fn active_provider() -> Box<dyn Displays> {
@@ -103,4 +104,9 @@ pub fn set_monitor_brightness(device_name: String, percent: u32) -> Result<(), S
 #[tauri::command]
 pub async fn identify_monitors(app_handle: tauri::AppHandle) -> Result<(), String> {
     active_provider().identify_monitors(app_handle)
+}
+
+#[tauri::command]
+pub fn set_monitor_scale(device_name: String, scale_percent: u32) -> Result<(), String> {
+    active_provider().set_monitor_scale(device_name, scale_percent)
 }

@@ -33,7 +33,14 @@ function App() {
 
   return (
     <div className="app-root">
-      {error && <div className="error">{error}</div>}
+      {error && (
+        <div className="error">
+          {error}{" "}
+          <span className="close" onClick={() => setError(null)}>
+            close
+          </span>
+        </div>
+      )}
 
       <div className="sections">
         {loading && (
