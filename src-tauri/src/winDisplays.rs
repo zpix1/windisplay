@@ -1,4 +1,7 @@
 use crate::displays::{BrightnessInfo, DisplayInfo, Displays, Resolution};
+use serde::Deserialize;
+use serde_json::Value;
+use std::process::Command;
 
 pub struct WinDisplays;
 
@@ -68,6 +71,103 @@ fn query_preferred_native_resolution(device_name: &str) -> Option<(u32, u32)> {
     None
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+struct PsEdidEntry {
+    #[serde(default)]
+    Manufacturer: String,
+    #[serde(default)]
+    Model: String,
+    #[serde(default)]
+    SerialNumber: String,
+    #[serde(default)]
+    ProductCodeId: String,
+    #[serde(default)]
+    WeekOfManufacture: Option<u32>,
+    #[serde(default)]
+    YearOfManufacture: Option<u32>,
+    #[serde(default)]
+    InstanceName: Option<String>,
+    #[serde(default)]
+    VideoOutputTechnology: Option<u32>,
+    #[serde(default)]
+    Active: Option<bool>,
+}
+
+fn to_lower(s: &str) -> String { s.to_ascii_lowercase() }
+
+fn fetch_edid_metadata_via_powershell() -> Vec<PsEdidEntry> {
+    // PowerShell script adapted from test.py to gather EDID metadata
+    let script = r#"
+$toStr = {
+  param([UInt16[]]$arr)
+  if (-not $arr) { return $null }
+  ($arr | ForEach-Object { if ($_ -gt 0 -and $_ -lt 256) { [char]$_ } }) -join ''
+}
+
+$ids = Get-CimInstance -Namespace root\wmi -Class WmiMonitorID -ErrorAction SilentlyContinue
+$basic = @{}
+Get-CimInstance -Namespace root\wmi -Class WmiMonitorBasicDisplayParams -ErrorAction SilentlyContinue | ForEach-Object {
+  $basic[$_.InstanceName] = $_
+}
+
+$conn = @{}
+Get-CimInstance -Namespace root\wmi -Class WmiMonitorConnectionParams -ErrorAction SilentlyContinue | ForEach-Object {
+  $conn[$_.InstanceName] = $_
+}
+
+$results = @()
+foreach ($m in $ids) {
+  $inst = $m.InstanceName
+  $b = $basic[$inst]
+  $c = $conn[$inst]
+  $obj = [pscustomobject]@{
+    InstanceName          = $inst
+    Manufacturer          = (& $toStr $m.ManufacturerName)
+    Model                 = (& $toStr $m.UserFriendlyName)
+    SerialNumber          = (& $toStr $m.SerialNumberID)
+    ProductCodeId         = (& $toStr $m.ProductCodeID)
+    WeekOfManufacture     = $m.WeekOfManufacture
+    YearOfManufacture     = $m.YearOfManufacture
+    VideoOutputTechnology = if ($c) { [uint32]$c.VideoOutputTechnology } else { $null }
+    Active                = if ($c) { [bool]$c.Active } else { $null }
+  }
+  $results += $obj
+}
+$results | ConvertTo-Json -Depth 4
+"#;
+
+    // Try pwsh, then powershell, then full path fallback
+    let candidates: &[&str] = &["pwsh", "powershell", r"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"];
+    let mut raw_output: Option<String> = None;
+    for exe in candidates {
+        let output = Command::new(exe)
+            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+            .output();
+        if let Ok(out) = output {
+            if out.status.success() {
+                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                if !stdout.trim().is_empty() {
+                    raw_output = Some(stdout);
+                    break;
+                }
+            }
+        }
+    }
+
+    let Some(raw) = raw_output else { return Vec::new() };
+    // Parse JSON, tolerate either array or single object
+    match serde_json::from_str::<Value>(&raw) {
+        Ok(Value::Array(arr)) => arr
+            .into_iter()
+            .filter_map(|v| serde_json::from_value::<PsEdidEntry>(v).ok())
+            .collect(),
+        Ok(Value::Object(_)) => serde_json::from_str::<PsEdidEntry>(&raw)
+            .map(|e| vec![e])
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    }
+}
+
 fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
     use std::mem::{size_of, zeroed};
     use windows::Win32::Foundation::BOOL;
@@ -78,6 +178,10 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
     };
 
     let mut displays: Vec<DisplayInfo> = Vec::new();
+
+    // Fetch EDID metadata from PowerShell once; if it fails, we proceed with defaults
+    let mut edid_entries: Vec<PsEdidEntry> = fetch_edid_metadata_via_powershell();
+    let mut used_edid: Vec<bool> = vec![false; edid_entries.len()];
 
     let mut device_index: u32 = 0;
     loop {
@@ -98,6 +202,7 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
 
         let device_name = widestr_to_string(&dd.DeviceName);
         let friendly_name = widestr_to_string(&dd.DeviceString);
+        let dd_device_id = widestr_to_string(&dd.DeviceID);
         let is_primary = (state & DISPLAY_DEVICE_PRIMARY_DEVICE) != 0;
 
         let mut current_mode: DEVMODEW = unsafe { zeroed() };
@@ -199,6 +304,75 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
                 .unwrap_or_else(|| current.clone())
         };
 
+        // Choose EDID metadata for this monitor (best-effort matching)
+        let mut model: String = String::new();
+        let mut manufacturer: String = String::new();
+        let mut serial: String = String::new();
+        let mut year_of_manufacture: u32 = 0;
+        let mut week_of_manufacture: u32 = 0;
+        let mut connection: String = String::new();
+        let mut built_in: bool = false;
+        let mut active: bool = false;
+
+        // Try to match by model/manufacturer presence in friendly name or device id
+        let friendly_l = to_lower(&friendly_name);
+        let devid_l = to_lower(&dd_device_id);
+        let mut chosen_idx: Option<usize> = None;
+        for (idx, e) in edid_entries.iter().enumerate() {
+            if used_edid[idx] { continue; }
+            let mdl = to_lower(&e.Model);
+            let mfr = to_lower(&e.Manufacturer);
+            if (!mdl.is_empty() && (friendly_l.contains(&mdl) || devid_l.contains(&mdl)))
+                || (!mfr.is_empty() && (friendly_l.contains(&mfr) || devid_l.contains(&mfr)))
+            {
+                chosen_idx = Some(idx);
+                break;
+            }
+        }
+        // Fallback: assign by display index order
+        if chosen_idx.is_none() {
+            for (idx, used) in used_edid.iter().enumerate() {
+                if !*used { chosen_idx = Some(idx); break; }
+            }
+        }
+        if let Some(idx) = chosen_idx {
+            used_edid[idx] = true;
+            let e = &edid_entries[idx];
+            model = e.Model.clone();
+            manufacturer = e.Manufacturer.clone();
+            serial = e.SerialNumber.clone();
+            year_of_manufacture = e.YearOfManufacture.unwrap_or(0);
+            week_of_manufacture = e.WeekOfManufacture.unwrap_or(0);
+            // Map VideoOutputTechnology to a friendly name similar to test.py
+            if let Some(code) = e.VideoOutputTechnology {
+                connection = match code as i64 {
+                    -2 => "Uninitialized".to_string(),
+                    -1 => "Other".to_string(),
+                    0 => "VGA".to_string(),
+                    1 => "S-Video".to_string(),
+                    2 => "Composite".to_string(),
+                    3 => "Component".to_string(),
+                    4 => "DVI".to_string(),
+                    5 => "HDMI".to_string(),
+                    6 => "LVDS / MIPI-DSI".to_string(),
+                    8 => "D-Jpn".to_string(),
+                    9 => "SDI".to_string(),
+                    10 => "DisplayPort (external)".to_string(),
+                    11 => "DisplayPort (embedded)".to_string(),
+                    12 => "UDI (external)".to_string(),
+                    13 => "UDI (embedded)".to_string(),
+                    14 => "SDTV dongle".to_string(),
+                    15 => "Miracast (wireless)".to_string(),
+                    16 => "Indirect (wired)".to_string(),
+                    2147483648 => "Internal (adapter)".to_string(),
+                    other => format!("Unknown ({})", other),
+                };
+                // Built-in detection as in test.py
+                built_in = matches!(code, 6 | 11 | 13 | 2147483648);
+            }
+            active = e.Active.unwrap_or(false);
+        }
+
         displays.push(DisplayInfo {
             device_name,
             friendly_name,
@@ -209,6 +383,14 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             current,
             modes,
             max_native,
+            model,
+            serial,
+            manufacturer,
+            year_of_manufacture,
+            week_of_manufacture,
+            connection,
+            built_in,
+            active,
         });
 
         device_index += 1;

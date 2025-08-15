@@ -9,7 +9,7 @@
     cursor: pointer;
     padding: 4px 14px;
     border-radius: 8px;
-    font-weight: 500;
+    font-weight: 400;
 }
 
 .text-toggle:hover, .text-toggle.loading {

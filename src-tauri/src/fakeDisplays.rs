@@ -31,6 +31,14 @@ impl Displays for FakeDisplays {
                     .cloned()
                     .max_by_key(|m| (m.width as u64) * (m.height as u64))
                     .unwrap_or_else(|| modes[0].clone()),
+                model: String::new(),
+                serial: String::new(),
+                manufacturer: String::new(),
+                year_of_manufacture: 0,
+                week_of_manufacture: 0,
+                connection: String::new(),
+                built_in: false,
+                active: false,
             })
             .collect();
 

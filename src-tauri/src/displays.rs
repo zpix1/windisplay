@@ -20,6 +20,15 @@ pub struct DisplayInfo {
     pub current: Resolution,
     pub modes: Vec<Resolution>,
     pub max_native: Resolution,
+    pub model: String,
+    pub serial: String,
+    pub manufacturer: String,
+    pub year_of_manufacture: u32,
+    pub week_of_manufacture: u32,
+    pub connection: String,
+    pub built_in: bool,
+    pub active: bool,
+    pub scale: f32,
 }
 
 #[derive(Debug, Serialize, Clone)]

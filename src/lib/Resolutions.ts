@@ -9,6 +9,14 @@ export type DisplayInfo = {
   current: Resolution;
   modes: Resolution[];
   max_native: Resolution;
+  model: string;
+  serial: string;
+  manufacturer: string;
+  year_of_manufacture: number;
+  week_of_manufacture: number;
+  connection: string;
+  built_in: boolean;
+  active: boolean;
 };
 
 export type Resolution = {

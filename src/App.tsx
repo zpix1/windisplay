@@ -4,6 +4,7 @@ import { useMonitorsContext } from "./context/MonitorsContext";
 import IdentifyMonitorsButton from "./components/IdentifyMonitorsButton";
 import { useEffect, useMemo, useState } from "react";
 import { Selector } from "./components/ui/Selector/Selector";
+import { MonitorIcon } from "./components/ui/icons/MonitorIcon";
 
 function App() {
   const { monitors, loading, error, setError } = useMonitorsContext();
@@ -61,7 +62,16 @@ function App() {
 
         {selectedMonitor && (
           <>
-            <div className="section-header">{selectedMonitor.display_name}</div>
+            <div className="section-header">
+              <MonitorIcon
+                type={selectedMonitor.built_in ? "laptop" : "external"}
+                manufacturer={selectedMonitor.manufacturer}
+              />
+              <span className="monitor-name">
+                <span className="model">{selectedMonitor.model}</span>
+                <span className="connection">{selectedMonitor.connection}</span>
+              </span>
+            </div>
             <div className="section">
               <MonitorControls
                 monitor={selectedMonitor}
