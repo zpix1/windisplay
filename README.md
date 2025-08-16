@@ -7,6 +7,8 @@ Like BetterDisplay, but for Windows.
 - Change resolution and refresh rate of your monitors from your system tray.
 - Change monitor brightness
 - Change monitor orientation
+- Enable and disable HDR
+- Change scale without logging out
 
 More functions coming!
 
