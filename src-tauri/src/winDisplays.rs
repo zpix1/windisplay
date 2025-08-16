@@ -129,9 +129,17 @@ fn run_powershell_hidden(script: &str) -> Option<String> {
     let candidates: &[&str] = &[
         "pwsh",
         "powershell",
+        r"C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe",
         r"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
     ];
+    // Ensure PowerShell writes UTF-8 (no BOM) to stdout even on Windows PowerShell 5.1
+    // Prepend a tiny prolog to set the output encoding, then run the provided script
+    let wrapped_script = format!(
+        "$ErrorActionPreference='SilentlyContinue'; try {{ [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false); $global:OutputEncoding = [Console]::OutputEncoding }} catch {{}}; {}",
+        script
+    );
     for exe in candidates {
+        log::debug!("run_powershell_hidden: trying '{}'", exe);
         let mut cmd = Command::new(exe);
         cmd.args([
             "-NoProfile",
@@ -142,19 +150,46 @@ fn run_powershell_hidden(script: &str) -> Option<String> {
             "-ExecutionPolicy",
             "Bypass",
             "-Command",
-            script,
+            &wrapped_script,
         ]);
         #[cfg(windows)]
         {
             // CREATE_NO_WINDOW
             cmd.creation_flags(0x08000000);
         }
-        if let Ok(out) = cmd.output() {
-            if out.status.success() {
+        match cmd.output() {
+            Ok(out) => {
+                let success = out.status.success();
+                let code = out.status.code();
                 let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                if !stdout.trim().is_empty() {
-                    return Some(stdout);
+                let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                log::debug!(
+                    "run_powershell_hidden: exe='{}' success={} code={:?} stdout_len={} stderr_len={}",
+                    exe,
+                    success,
+                    code,
+                    out.stdout.len(),
+                    out.stderr.len()
+                );
+                if !stderr.trim().is_empty() {
+                    log::warn!(
+                        "run_powershell_hidden: stderr (first 400 chars): {}",
+                        &stderr.chars().take(400).collect::<String>()
+                    );
                 }
+                if success {
+                    if !stdout.trim().is_empty() {
+                        return Some(stdout);
+                    } else {
+                        log::warn!(
+                            "run_powershell_hidden: empty stdout from '{}' despite success",
+                            exe
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                log::warn!("run_powershell_hidden: failed to spawn '{}': {}", exe, e);
             }
         }
     }
@@ -199,7 +234,7 @@ foreach ($m in $ids) {
   }
   $results += $obj
 }
-$results | ConvertTo-Json -Depth 4
+if ($results) { $results | ConvertTo-Json -Depth 4 } else { '[]' }
 "#;
 
     let Some(raw) = run_powershell_hidden(script) else {

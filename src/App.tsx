@@ -15,7 +15,17 @@ function App() {
 
   // Keep selection valid when monitors list changes
   useEffect(() => {
-    debug(`monitors ${JSON.stringify(monitors, null, 2)}`);
+    debug(
+      `monitors ${JSON.stringify(
+        monitors.map((e) => ({
+          ...e,
+          modes: e.modes.length,
+          scales: e.scales.length,
+        })),
+        null,
+        2
+      )}`
+    );
     if (monitors.length === 0) {
       setSelectedDeviceName(null);
       return;
