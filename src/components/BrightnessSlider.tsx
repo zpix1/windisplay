@@ -6,11 +6,17 @@ import { BrightnessIcon } from "./ui/icons/BrightnessIcon";
 
 type Props = {
   deviceName: string | null;
+  requiresWmi?: boolean;
   disabled?: boolean;
   onError?: (msg: string) => void;
 };
 
-export function BrightnessSlider({ deviceName, disabled, onError }: Props) {
+export function BrightnessSlider({
+  deviceName,
+  requiresWmi,
+  disabled,
+  onError,
+}: Props) {
   const [pct, setPct] = useState<number | null>(null);
 
   useEffect(() => {
@@ -32,7 +38,7 @@ export function BrightnessSlider({ deviceName, disabled, onError }: Props) {
           setPct(Math.max(0, Math.min(100, val)));
         }
       } catch (e) {
-        if (!cancelled && onError) onError((e as Error).message ?? String(e));
+        console.error(e);
       }
     })();
     return () => {
@@ -53,7 +59,7 @@ export function BrightnessSlider({ deviceName, disabled, onError }: Props) {
     [deviceName, onError]
   );
 
-  const throttledApply = useThrottle(apply, 50);
+  const throttledApply = useThrottle(apply, requiresWmi ? 1000 : 100);
 
   return (
     <div className="field">

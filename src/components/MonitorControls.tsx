@@ -21,6 +21,7 @@ export default function MonitorControls({
     <>
       <BrightnessSlider
         deviceName={monitor.device_name}
+        requiresWmi={monitor.requires_wmi_brightness}
         disabled={disabled}
         onError={onError}
       />

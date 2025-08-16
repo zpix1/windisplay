@@ -65,7 +65,12 @@ function App() {
           <>
             <div className="section-header">
               <MonitorIcon
-                type={selectedMonitor.built_in ? "laptop" : "external"}
+                type={
+                  selectedMonitor.built_in ||
+                  selectedMonitor.requires_wmi_brightness
+                    ? "laptop"
+                    : "external"
+                }
                 manufacturer={selectedMonitor.manufacturer}
               />
               <span className="monitor-name">

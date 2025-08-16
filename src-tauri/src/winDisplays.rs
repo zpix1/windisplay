@@ -526,6 +526,7 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             scale: scale_factor,
             scales,
             hdr_status,
+            requires_wmi_brightness: built_in,
         });
 
         logical_display_index += 1;
