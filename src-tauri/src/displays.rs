@@ -34,9 +34,11 @@ pub struct DisplayInfo {
     pub connection: String,
     pub built_in: bool,
     pub active: bool,
-    
+
     pub scale: f32,
     pub scales: Vec<ScaleInfo>,
+    // HDR status: "unsupported", "on", "off"
+    pub hdr_status: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -55,12 +57,16 @@ pub trait Displays {
         height: u32,
         refresh_hz: Option<u32>,
     ) -> Result<(), String>;
-    fn set_monitor_orientation(&self, device_name: String, orientation_degrees: u32)
-        -> Result<(), String>;
+    fn set_monitor_orientation(
+        &self,
+        device_name: String,
+        orientation_degrees: u32,
+    ) -> Result<(), String>;
     fn get_monitor_brightness(&self, device_name: String) -> Result<BrightnessInfo, String>;
     fn set_monitor_brightness(&self, device_name: String, percent: u32) -> Result<(), String>;
     fn identify_monitors(&self, app_handle: tauri::AppHandle) -> Result<(), String>;
     fn set_monitor_scale(&self, device_name: String, scale_percent: u32) -> Result<(), String>;
+    fn enable_hdr(&self, device_name: String, enable: bool) -> Result<(), String>;
 }
 
 fn active_provider() -> Box<dyn Displays> {
@@ -95,7 +101,10 @@ pub fn set_monitor_resolution(
 }
 
 #[tauri::command]
-pub fn set_monitor_orientation(device_name: String, orientation_degrees: u32) -> Result<(), String> {
+pub fn set_monitor_orientation(
+    device_name: String,
+    orientation_degrees: u32,
+) -> Result<(), String> {
     active_provider().set_monitor_orientation(device_name, orientation_degrees)
 }
 
@@ -117,4 +126,9 @@ pub async fn identify_monitors(app_handle: tauri::AppHandle) -> Result<(), Strin
 #[tauri::command]
 pub fn set_monitor_scale(device_name: String, scale_percent: u32) -> Result<(), String> {
     active_provider().set_monitor_scale(device_name, scale_percent)
+}
+
+#[tauri::command]
+pub fn enable_hdr(device_name: String, enable: bool) -> Result<(), String> {
+    active_provider().enable_hdr(device_name, enable)
 }

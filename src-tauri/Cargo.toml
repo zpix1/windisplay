@@ -31,6 +31,7 @@ windows = { version = "0.56", features = [
   "Win32_UI_WindowsAndMessaging",
   "Win32_System_LibraryLoader",
 ] }
+tauri-plugin-opener = "2"
 
 [features]
 default = []

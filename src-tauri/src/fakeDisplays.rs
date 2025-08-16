@@ -56,6 +56,7 @@ impl Displays for FakeDisplays {
                 active: false,
                 scale: if i == 0 { 1.25 } else { 1.0 },
                 scales: vec![],
+                hdr_status: "unsupported".to_string(),
             })
             .collect();
 
@@ -97,6 +98,10 @@ impl Displays for FakeDisplays {
     }
 
     fn set_monitor_scale(&self, _device_name: String, _scale_percent: u32) -> Result<(), String> {
+        Ok(())
+    }
+
+    fn enable_hdr(&self, _device_name: String, _enable: bool) -> Result<(), String> {
         Ok(())
     }
 }

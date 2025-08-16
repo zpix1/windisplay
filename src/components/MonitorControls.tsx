@@ -4,6 +4,8 @@ import { RefreshRateSlider } from "./RefreshRateSlider";
 import { aspectKey, DisplayInfo } from "../lib/Resolutions";
 import { OrientationSelector } from "./OrientationTextToggle";
 import { ScaleSlider } from "./ScaleSlider.tsx";
+import { TextToggle } from "./ui/TextToggle/TextToggle.tsx";
+import { HdrToggle } from "./HdrToggle.tsx";
 
 type MonitorControlsProps = {
   monitor: DisplayInfo;
@@ -59,6 +61,10 @@ export default function MonitorControls({
         disabled={disabled}
         onError={onError}
       />
+
+      {monitor.hdr_status !== "unsupported" && (
+        <HdrToggle monitor={monitor} disabled={disabled} onError={onError} />
+      )}
     </>
   );
 }

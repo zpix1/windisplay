@@ -52,7 +52,7 @@
     background-color: transparent;
 }
 
-.text-toggle.toggled .icon svg {
+.text-toggle:not(.no-icon-bg).toggled .icon svg {
     stroke: #fff;
     fill: #fff;
 }

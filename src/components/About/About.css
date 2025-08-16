@@ -1,0 +1,32 @@
+.about-container {
+    padding: 16px;
+}
+
+.about-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.about-name {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+/* badge */
+.about-version, .about-github {
+    background-color: #535353;
+    color: #fff;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.about-description {
+    margin-top: 8px;
+}
+
+a {
+    color: #0051ff;
+    text-decoration: none;
+}

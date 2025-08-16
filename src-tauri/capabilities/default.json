@@ -2,9 +2,14 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window and monitor identification overlays",
-  "windows": ["main", "monitor_overlay_*"],
+  "windows": [
+    "main",
+    "monitor_overlay_*",
+    "about"
+  ],
   "permissions": [
     "core:default",
-    "core:webview:allow-create-webview-window"
+    "core:webview:allow-create-webview-window",
+    "opener:default"
   ]
 }

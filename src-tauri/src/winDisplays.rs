@@ -49,6 +49,23 @@ impl Displays for WinDisplays {
     fn set_monitor_scale(&self, device_name: String, scale_percent: u32) -> Result<(), String> {
         set_monitor_scale_windows(&device_name, scale_percent)
     }
+
+    fn enable_hdr(&self, device_name: String, enable: bool) -> Result<(), String> {
+        // Find logical display index matching `device_name` in the same order as get_all_monitors_windows
+        let monitors = get_all_monitors_windows()?;
+        let index = monitors
+            .iter()
+            .position(|m| m.device_name == device_name)
+            .ok_or_else(|| "Display not found".to_string())?;
+
+        match crate::winHdr::set_hdr_status_by_index(index, enable) {
+            Some(crate::winHdr::Status::Unsupported) => {
+                Err("HDR unsupported on this display".to_string())
+            }
+            Some(_status) => Ok(()),
+            None => Err("Failed to change HDR state".to_string()),
+        }
+    }
 }
 
 // Attempt to fetch a preferred/native mode using registry-stored settings for the device.
@@ -200,6 +217,9 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
     };
 
     let mut displays: Vec<DisplayInfo> = Vec::new();
+    // Pre-fetch HDR display list and match by index as requested
+    let hdr_displays = crate::winHdr::get_displays();
+    let mut logical_display_index: usize = 0;
 
     // Fetch EDID metadata from PowerShell once; if it fails, we proceed with defaults
     let mut edid_entries: Vec<PsEdidEntry> = fetch_edid_metadata_via_powershell();
@@ -465,6 +485,15 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             Err(_) => Vec::new(),
         };
 
+        let hdr_status: String = match hdr_displays.get(logical_display_index) {
+            Some(h) => match h.status {
+                crate::winHdr::Status::Unsupported => "unsupported".to_string(),
+                crate::winHdr::Status::Off => "off".to_string(),
+                crate::winHdr::Status::On => "on".to_string(),
+            },
+            None => "unsupported".to_string(),
+        };
+
         displays.push(DisplayInfo {
             device_name,
             friendly_name,
@@ -485,8 +514,10 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             active,
             scale: scale_factor,
             scales,
+            hdr_status,
         });
 
+        logical_display_index += 1;
         device_index += 1;
     }
 
@@ -1013,10 +1044,6 @@ fn get_scales_for_device(device_name: &str) -> Result<Vec<ScaleInfo>, String> {
             rc
         ));
     }
-
-    println!("pkt min: {:?}", pkt.min_scale_rel);
-    println!("pkt cur: {:?}", pkt.cur_scale_rel);
-    println!("pkt max: {:?}", pkt.max_scale_rel);
 
     // Relative semantics:
     // - min_scale_rel: steps DOWN from recommended to reach minimum (100%).
