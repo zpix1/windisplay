@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { execFile } from "node:child_process";
 
 function isValidSemver(version) {
   return /^\d+\.\d+\.\d+$/.test(version);
@@ -20,7 +21,13 @@ function bumpSemver(version, kind) {
 }
 
 function parseArgs(argv) {
-  const args = { mode: "patch", to: null };
+  const args = {
+    mode: "patch",
+    to: null,
+    tag: false,
+    remote: "origin",
+    tagName: null,
+  };
   for (const arg of argv.slice(2)) {
     if (arg === "major" || arg === "minor" || arg === "patch") {
       args.mode = arg;
@@ -34,6 +41,18 @@ function parseArgs(argv) {
       const idx = argv.indexOf("-t");
       const next = argv[idx + 1];
       if (next) args.to = next;
+      continue;
+    }
+    if (arg === "--tag") {
+      args.tag = true;
+      continue;
+    }
+    if (arg.startsWith("--remote=")) {
+      args.remote = arg.slice("--remote=".length) || "origin";
+      continue;
+    }
+    if (arg.startsWith("--tag-name=")) {
+      args.tagName = arg.slice("--tag-name=".length);
       continue;
     }
   }
@@ -111,6 +130,69 @@ async function main() {
   console.log(" - package.json");
   console.log(" - src-tauri/tauri.conf.json");
   console.log(" - src-tauri/Cargo.toml");
+
+  const runGit = (gitArgs) =>
+    new Promise((resolve, reject) => {
+      execFile("git", gitArgs, { cwd: root }, (err, stdout, stderr) => {
+        if (err) {
+          reject(new Error(stderr || err.message));
+          return;
+        }
+        resolve(stdout);
+      });
+    });
+
+  // Stage, commit, and push changes
+  await runGit([
+    "add",
+    "package.json",
+    "src-tauri/tauri.conf.json",
+    "src-tauri/Cargo.toml",
+  ]);
+  const status = await runGit(["status", "--porcelain"]);
+  if (String(status).trim().length > 0) {
+    await runGit(["commit", "-m", `chore: release ${nextVersion}`]);
+    await runGit(["push", args.remote, "HEAD"]);
+    console.log(`Committed and pushed: chore: release ${nextVersion}`);
+  } else {
+    console.log("No changes to commit.");
+  }
+
+  if (args.tag) {
+    const tagName =
+      args.tagName && args.tagName.trim().length > 0
+        ? args.tagName
+        : `v${nextVersion}`;
+    await new Promise((resolve, reject) => {
+      execFile(
+        "git",
+        ["tag", "-a", tagName, "-m", tagName],
+        { cwd: root },
+        (err, stdout, stderr) => {
+          if (err) {
+            reject(new Error(stderr || err.message));
+            return;
+          }
+          resolve();
+        }
+      );
+    });
+    await new Promise((resolve, reject) => {
+      execFile(
+        "git",
+        ["push", args.remote, tagName],
+        { cwd: root },
+        (err, stdout, stderr) => {
+          if (err) {
+            reject(new Error(stderr || err.message));
+            return;
+          }
+          resolve();
+        }
+      );
+    });
+    console.log(`Created and pushed tag '${tagName}' to ${args.remote}`);
+  }
 }
 
 main().catch((err) => {
