@@ -102,7 +102,7 @@ pub fn run() {
                 // Hide on focus out
                 window.on_window_event(move |event| {
                     if let WindowEvent::Focused(false) = event {
-                        // let _ = win_clone.hide();
+                        let _ = win_clone.hide();
                     }
                 });
                 // Ensure the window does not appear in the taskbar
