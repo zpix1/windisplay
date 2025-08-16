@@ -1,10 +1,11 @@
-import "./App.css";
-import MonitorControls from "./components/MonitorControls";
-import { useMonitorsContext } from "./context/MonitorsContext";
-import IdentifyMonitorsButton from "./components/IdentifyMonitorsButton";
+import { debug } from "@tauri-apps/plugin-log";
 import { useEffect, useMemo, useState } from "react";
+import "./App.css";
+import IdentifyMonitorsButton from "./components/IdentifyMonitorsButton";
+import MonitorControls from "./components/MonitorControls";
 import { Selector } from "./components/ui/Selector/Selector";
 import { MonitorIcon } from "./components/ui/icons/MonitorIcon";
+import { useMonitorsContext } from "./context/MonitorsContext";
 
 function App() {
   const { monitors, loading, error, setError } = useMonitorsContext();
@@ -14,6 +15,7 @@ function App() {
 
   // Keep selection valid when monitors list changes
   useEffect(() => {
+    debug(`monitors ${JSON.stringify(monitors, null, 2)}`);
     if (monitors.length === 0) {
       setSelectedDeviceName(null);
       return;
@@ -65,12 +67,7 @@ function App() {
           <>
             <div className="section-header">
               <MonitorIcon
-                type={
-                  selectedMonitor.built_in ||
-                  selectedMonitor.requires_wmi_brightness
-                    ? "laptop"
-                    : "external"
-                }
+                type={selectedMonitor.built_in ? "laptop" : "external"}
                 manufacturer={selectedMonitor.manufacturer}
               />
               <span className="monitor-name">

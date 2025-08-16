@@ -20,7 +20,6 @@ export type DisplayInfo = {
   scale: number;
   scales: ScaleInfo[];
   hdr_status: "on" | "off" | "unsupported";
-  requires_wmi_brightness: boolean;
 };
 
 export type ScaleInfo = {

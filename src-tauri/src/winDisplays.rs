@@ -227,13 +227,19 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         DISPLAY_DEVICE_PRIMARY_DEVICE,
     };
 
+    log::debug!("get_all_monitors_windows: start");
     let mut displays: Vec<DisplayInfo> = Vec::new();
     // Pre-fetch HDR display list and match by index as requested
     let hdr_displays = crate::winHdr::get_displays();
+    log::debug!("HDR displays fetched: count={}", hdr_displays.len());
     let mut logical_display_index: usize = 0;
 
     // Fetch EDID metadata from PowerShell once; if it fails, we proceed with defaults
     let mut edid_entries: Vec<PsEdidEntry> = fetch_edid_metadata_via_powershell();
+    log::debug!(
+        "EDID entries fetched via PowerShell: count={}",
+        edid_entries.len()
+    );
     let mut used_edid: Vec<bool> = vec![false; edid_entries.len()];
 
     let mut device_index: u32 = 0;
@@ -242,6 +248,10 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         dd.cb = size_of::<DISPLAY_DEVICEW>() as u32;
         let ok: BOOL = unsafe { EnumDisplayDevicesW(None, device_index, &mut dd, 0) };
         if !ok.as_bool() {
+            log::debug!(
+                "EnumDisplayDevicesW returned false at device_index={}, stopping enumeration",
+                device_index
+            );
             break;
         }
 
@@ -249,6 +259,12 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         let is_attached = (state & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0;
         let is_mirror = (state & DISPLAY_DEVICE_MIRRORING_DRIVER) != 0;
         if !is_attached || is_mirror {
+            log::debug!(
+                "Skipping device_index={} is_attached={} is_mirror={}",
+                device_index,
+                is_attached,
+                is_mirror
+            );
             device_index += 1;
             continue;
         }
@@ -270,6 +286,11 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             )
         };
         if !ok_current.as_bool() {
+            log::warn!(
+                "EnumDisplaySettingsExW current failed for device_name='{}' (index={})",
+                device_name,
+                device_index
+            );
             device_index += 1;
             continue;
         }
@@ -314,6 +335,11 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
                 )
             };
             if !ok_mode.as_bool() {
+                log::debug!(
+                    "End of mode enumeration for device_name='{}' after {} modes",
+                    device_name,
+                    mode_index
+                );
                 break;
             }
 
@@ -338,6 +364,12 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
 
         // Prefer OS-reported preferred/native mode via DisplayConfig; fall back to largest area mode
         let max_native = if let Some((nw, nh)) = query_preferred_native_resolution(&device_name) {
+            log::debug!(
+                "Preferred/native resolution for '{}' -> {}x{}",
+                device_name,
+                nw,
+                nh
+            );
             // Pick the highest refresh for the preferred width/height among available modes
             modes
                 .iter()
@@ -351,6 +383,10 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
                     refresh_hz: current.refresh_hz,
                 })
         } else {
+            log::debug!(
+                "No preferred/native resolution for '{}', falling back to max area mode",
+                device_name
+            );
             modes
                 .iter()
                 .cloned()
@@ -452,6 +488,13 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         if let Some(idx) = chosen_idx {
             used_edid[idx] = true;
             let e = &edid_entries[idx];
+            log::debug!(
+                "EDID matched for '{}' using entry index={} model='{}' manufacturer='{}'",
+                device_name,
+                idx,
+                e.Model,
+                e.Manufacturer
+            );
             model = e.Model.clone();
             manufacturer = e.Manufacturer.clone();
             serial = e.SerialNumber.clone();
@@ -526,13 +569,33 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             scale: scale_factor,
             scales,
             hdr_status,
-            requires_wmi_brightness: built_in,
         });
+
+        if let Some(last) = displays.last() {
+            log::info!(
+                "Monitor {}: '{}' primary={} pos=({}, {}) current={}x{}@{}Hz scale={} connection='{}' hdr_status={}",
+                logical_display_index,
+                last.friendly_name,
+                last.is_primary,
+                last.position_x,
+                last.position_y,
+                last.current.width,
+                last.current.height,
+                last.current.refresh_hz,
+                last.scale,
+                last.connection,
+                last.hdr_status
+            );
+        }
 
         logical_display_index += 1;
         device_index += 1;
     }
 
+    log::info!(
+        "get_all_monitors_windows: done, total_monitors={}",
+        displays.len()
+    );
     Ok(displays)
 }
 

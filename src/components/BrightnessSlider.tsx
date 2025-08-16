@@ -38,7 +38,7 @@ export function BrightnessSlider({
           setPct(Math.max(0, Math.min(100, val)));
         }
       } catch (e) {
-        console.error(e);
+        if (!cancelled && onError) onError((e as Error).message ?? String(e));
       }
     })();
     return () => {
@@ -50,13 +50,12 @@ export function BrightnessSlider({
     async (next: number) => {
       if (!deviceName) return;
       try {
-        console.log("apply", deviceName, next);
         await invoke("set_monitor_brightness", { deviceName, percent: next });
       } catch (e) {
-        if (onError) onError((e as Error).message ?? String(e));
+        console.error(e);
       }
     },
-    [deviceName, onError]
+    [deviceName]
   );
 
   const throttledApply = useThrottle(apply, requiresWmi ? 1000 : 100);

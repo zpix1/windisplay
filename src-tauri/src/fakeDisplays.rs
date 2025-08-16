@@ -57,7 +57,6 @@ impl Displays for FakeDisplays {
                 scale: if i == 0 { 1.25 } else { 1.0 },
                 scales: vec![],
                 hdr_status: "unsupported".to_string(),
-                requires_wmi_brightness: false,
             })
             .collect();
 

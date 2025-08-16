@@ -39,8 +39,6 @@ pub struct DisplayInfo {
     pub scales: Vec<ScaleInfo>,
     // HDR status: "unsupported", "on", "off"
     pub hdr_status: String,
-    // Internal panels typically require WMI for brightness control on Windows
-    pub requires_wmi_brightness: bool,
 }
 
 #[derive(Debug, Serialize, Clone)]
