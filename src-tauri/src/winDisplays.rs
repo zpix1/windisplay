@@ -790,7 +790,6 @@ fn get_monitor_brightness_windows(device_name: String) -> Result<BrightnessInfo,
     use windows::Win32::Devices::Display::GetMonitorBrightness;
 
     match with_first_physical_monitor(&device_name, |pm| {
-        return Err("KEK failed (monitor may not support DDC/CI)".to_string());
         let mut min = 0u32;
         let mut cur = 0u32;
         let mut max = 0u32;
