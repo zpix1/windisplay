@@ -4,6 +4,32 @@
   padding-right: 4px;
 }
 
+.slider-dots {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.slider-sticky-dot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6d6d6d;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+}
+
+.slider-sticky-dot.recommended {
+  width: 8px;
+  height: 8px;
+  background: #2b6cb0;
+}
+
 .slider-overlay {
   position: absolute;
   top: 0;

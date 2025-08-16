@@ -44,7 +44,8 @@ export default function MonitorControls({
       <ScaleSlider
         deviceName={monitor.device_name}
         currentScale={monitor.scale}
-        disabled={true}
+        scales={monitor.scales}
+        disabled={disabled}
         onError={onError}
       />
 

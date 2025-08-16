@@ -12,7 +12,6 @@ type Props = {
 
 export function BrightnessSlider({ deviceName, disabled, onError }: Props) {
   const [pct, setPct] = useState<number | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -22,7 +21,6 @@ export function BrightnessSlider({ deviceName, disabled, onError }: Props) {
         return;
       }
       try {
-        setLoading(true);
         const info = await invoke<{
           min: number;
           current: number;
@@ -35,8 +33,6 @@ export function BrightnessSlider({ deviceName, disabled, onError }: Props) {
         }
       } catch (e) {
         if (!cancelled && onError) onError((e as Error).message ?? String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -46,10 +42,9 @@ export function BrightnessSlider({ deviceName, disabled, onError }: Props) {
 
   const apply = useCallback(
     async (next: number) => {
-      console.log("apply", deviceName, next);
-
       if (!deviceName) return;
       try {
+        console.log("apply", deviceName, next);
         await invoke("set_monitor_brightness", { deviceName, percent: next });
       } catch (e) {
         if (onError) onError((e as Error).message ?? String(e));
@@ -70,7 +65,7 @@ export function BrightnessSlider({ deviceName, disabled, onError }: Props) {
         min={0}
         max={100}
         step={1}
-        disabled={disabled || loading || pct === null}
+        disabled={disabled || pct === null}
         value={pct ?? 0}
         onChange={(next) => {
           setPct(next);

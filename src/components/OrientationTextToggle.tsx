@@ -68,8 +68,6 @@ export function OrientationSelector({
     return "16:9";
   }, [aspectRatioKey]);
 
-  console.log("aspectKey", aspectKey);
-
   return (
     <>
       <TextToggle

@@ -18,6 +18,12 @@ export type DisplayInfo = {
   built_in: boolean;
   active: boolean;
   scale: number;
+  scales: ScaleInfo[];
+};
+
+export type ScaleInfo = {
+  scale: number;
+  is_recommended: boolean;
 };
 
 export type Resolution = {

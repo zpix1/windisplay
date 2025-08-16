@@ -43,12 +43,6 @@ function App() {
       )}
 
       <div className="sections">
-        {loading && (
-          <div className="section">
-            <div className="muted">Loading...</div>
-          </div>
-        )}
-
         {!loading && monitors.length === 0 && (
           <div className="section">
             <div className="muted">No monitors detected</div>

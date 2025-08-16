@@ -9,6 +9,12 @@ pub struct Resolution {
 }
 
 #[derive(Debug, Serialize, Clone)]
+pub struct ScaleInfo {
+    pub scale: f32,
+    pub is_recommended: bool,
+}
+
+#[derive(Debug, Serialize, Clone)]
 pub struct DisplayInfo {
     pub device_name: String,
     pub friendly_name: String,
@@ -28,7 +34,9 @@ pub struct DisplayInfo {
     pub connection: String,
     pub built_in: bool,
     pub active: bool,
+    
     pub scale: f32,
+    pub scales: Vec<ScaleInfo>,
 }
 
 #[derive(Debug, Serialize, Clone)]

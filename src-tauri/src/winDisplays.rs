@@ -1,4 +1,4 @@
-use crate::displays::{BrightnessInfo, DisplayInfo, Displays, Resolution};
+use crate::displays::{BrightnessInfo, DisplayInfo, Displays, Resolution, ScaleInfo};
 use serde::Deserialize;
 use serde_json::Value;
 use std::process::Command;
@@ -38,14 +38,16 @@ impl Displays for WinDisplays {
         identify_monitors_windows(app_handle)
     }
 
-    fn set_monitor_orientation(&self, device_name: String, orientation_degrees: u32) -> Result<(), String> {
+    fn set_monitor_orientation(
+        &self,
+        device_name: String,
+        orientation_degrees: u32,
+    ) -> Result<(), String> {
         set_monitor_orientation_windows(device_name, orientation_degrees)
     }
 
-    fn set_monitor_scale(&self, _device_name: String, _scale_percent: u32) -> Result<(), String> {
-        // There is no supported public API to programmatically change per-monitor DPI scaling
-        // without requiring user sign-out/restart. We choose to surface this as unsupported.
-        Err("Changing display scale is not supported on Windows by this app".to_string())
+    fn set_monitor_scale(&self, device_name: String, scale_percent: u32) -> Result<(), String> {
+        set_monitor_scale_windows(&device_name, scale_percent)
     }
 }
 
@@ -99,7 +101,9 @@ struct PsEdidEntry {
     Active: Option<bool>,
 }
 
-fn to_lower(s: &str) -> String { s.to_ascii_lowercase() }
+fn to_lower(s: &str) -> String {
+    s.to_ascii_lowercase()
+}
 
 fn fetch_edid_metadata_via_powershell() -> Vec<PsEdidEntry> {
     // PowerShell script adapted from test.py to gather EDID metadata
@@ -143,11 +147,21 @@ $results | ConvertTo-Json -Depth 4
 "#;
 
     // Try pwsh, then powershell, then full path fallback
-    let candidates: &[&str] = &["pwsh", "powershell", r"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"];
+    let candidates: &[&str] = &[
+        "pwsh",
+        "powershell",
+        r"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    ];
     let mut raw_output: Option<String> = None;
     for exe in candidates {
         let output = Command::new(exe)
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                script,
+            ])
             .output();
         if let Ok(out) = output {
             if out.status.success() {
@@ -160,7 +174,9 @@ $results | ConvertTo-Json -Depth 4
         }
     }
 
-    let Some(raw) = raw_output else { return Vec::new() };
+    let Some(raw) = raw_output else {
+        return Vec::new();
+    };
     // Parse JSON, tolerate either array or single object
     match serde_json::from_str::<Value>(&raw) {
         Ok(Value::Array(arr)) => arr
@@ -243,13 +259,14 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
 
         // Orientation is exposed by dmDisplayOrientation (0,1,2,3) which maps to 0,90,180,270 degrees.
         use windows::Win32::Graphics::Gdi::{DMDO_180, DMDO_270, DMDO_90, DMDO_DEFAULT};
-        let orientation_degrees: u32 = match unsafe { current_mode.Anonymous1.Anonymous2.dmDisplayOrientation } {
-            DMDO_DEFAULT => 0,
-            DMDO_90 => 90,
-            DMDO_180 => 180,
-            DMDO_270 => 270,
-            _ => 0,
-        };
+        let orientation_degrees: u32 =
+            match unsafe { current_mode.Anonymous1.Anonymous2.dmDisplayOrientation } {
+                DMDO_DEFAULT => 0,
+                DMDO_90 => 90,
+                DMDO_180 => 180,
+                DMDO_270 => 270,
+                _ => 0,
+            };
 
         let mut modes: Vec<Resolution> = Vec::new();
         let mut mode_index: u32 = 0;
@@ -351,7 +368,9 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         let mut chosen_idx: Option<usize> = None;
         // 1) Prefer exact-ish match using InstanceName fragment (e.g., VENDOR+PRODUCT)
         for (idx, e) in edid_entries.iter().enumerate() {
-            if used_edid[idx] { continue; }
+            if used_edid[idx] {
+                continue;
+            }
             if let Some(inst) = &e.InstanceName {
                 let inst_l = to_lower(inst);
                 // Some DeviceIDs start with MONITOR\\, others with DISPLAY\\. Compare loosely.
@@ -361,8 +380,11 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
                 }
                 // Also try matching the vendor+product fragment (between first and second backslashes)
                 if let Some(pos1) = inst_l.find('\\') {
-                    if let Some(rest) = inst_l.get(pos1+1..) {
-                        let frag = match rest.find('\\') { Some(p) => &rest[..p], None => rest };
+                    if let Some(rest) = inst_l.get(pos1 + 1..) {
+                        let frag = match rest.find('\\') {
+                            Some(p) => &rest[..p],
+                            None => rest,
+                        };
                         if !frag.is_empty() && devid_l.contains(frag) {
                             chosen_idx = Some(idx);
                             break;
@@ -374,7 +396,9 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         // 2) Fallback: match by model/manufacturer presence
         if chosen_idx.is_none() {
             for (idx, e) in edid_entries.iter().enumerate() {
-                if used_edid[idx] { continue; }
+                if used_edid[idx] {
+                    continue;
+                }
                 let mdl = to_lower(&e.Model);
                 let mfr = to_lower(&e.Manufacturer);
                 if (!mdl.is_empty() && (friendly_l.contains(&mdl) || devid_l.contains(&mdl)))
@@ -388,7 +412,10 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         // Fallback: assign by display index order
         if chosen_idx.is_none() {
             for (idx, used) in used_edid.iter().enumerate() {
-                if !*used { chosen_idx = Some(idx); break; }
+                if !*used {
+                    chosen_idx = Some(idx);
+                    break;
+                }
             }
         }
         if let Some(idx) = chosen_idx {
@@ -432,6 +459,12 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
         // Determine per-monitor scaling (DPI / 96)
         let scale_factor: f32 = get_monitor_scale_for_device(&device_name);
 
+        // Query available scales and recommended state via DisplayConfig undocumented API
+        let scales: Vec<ScaleInfo> = match get_scales_for_device(&device_name) {
+            Ok(v) => v,
+            Err(_) => Vec::new(),
+        };
+
         displays.push(DisplayInfo {
             device_name,
             friendly_name,
@@ -451,6 +484,7 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             built_in,
             active,
             scale: scale_factor,
+            scales,
         });
 
         device_index += 1;
@@ -538,12 +572,15 @@ fn set_monitor_resolution_windows(
     }
 }
 
-fn set_monitor_orientation_windows(device_name: String, orientation_degrees: u32) -> Result<(), String> {
+fn set_monitor_orientation_windows(
+    device_name: String,
+    orientation_degrees: u32,
+) -> Result<(), String> {
     use std::mem::{size_of, zeroed};
     use windows::Win32::Foundation::BOOL;
     use windows::Win32::Graphics::Gdi::{
         ChangeDisplaySettingsExW, EnumDisplaySettingsExW, DEVMODEW, DISP_CHANGE_SUCCESSFUL,
-        DM_DISPLAYORIENTATION, DM_PELSWIDTH, DM_PELSHEIGHT,
+        DM_DISPLAYORIENTATION, DM_PELSHEIGHT, DM_PELSWIDTH,
     };
 
     let mut dm: DEVMODEW = unsafe { zeroed() };
@@ -567,7 +604,12 @@ fn set_monitor_orientation_windows(device_name: String, orientation_degrees: u32
         90 => 1,
         180 => 2,
         270 => 3,
-        other => return Err(format!("Unsupported orientation degrees: {} (must be 0/90/180/270)", other)),
+        other => {
+            return Err(format!(
+                "Unsupported orientation degrees: {} (must be 0/90/180/270)",
+                other
+            ))
+        }
     };
 
     // Windows expects width/height swapped for 90/270 if not already
@@ -606,7 +648,14 @@ fn set_monitor_orientation_windows(device_name: String, orientation_degrees: u32
         )
     };
 
-    if status == DISP_CHANGE_SUCCESSFUL { Ok(()) } else { Err(format!("ChangeDisplaySettingsExW failed with code: {:?}", status)) }
+    if status == DISP_CHANGE_SUCCESSFUL {
+        Ok(())
+    } else {
+        Err(format!(
+            "ChangeDisplaySettingsExW failed with code: {:?}",
+            status
+        ))
+    }
 }
 fn find_hmonitor_by_device_name(
     device_name: &str,
@@ -706,7 +755,11 @@ fn get_monitor_brightness_windows(device_name: String) -> Result<BrightnessInfo,
         if ok == 0 {
             return Err("GetMonitorBrightness failed (monitor may not support DDC/CI)".to_string());
         }
-        Ok(BrightnessInfo { min, current: cur, max })
+        Ok(BrightnessInfo {
+            min,
+            current: cur,
+            max,
+        })
     })
 }
 
@@ -773,6 +826,360 @@ fn get_monitor_scale_for_device(device_name: &str) -> f32 {
     scale
 }
 
+#[cfg(windows)]
+mod displayconfig_ffi {
+    #![allow(non_camel_case_types)]
+    #![allow(non_snake_case)]
+    #![allow(dead_code)]
+    use windows::Win32::Foundation::{BOOL, LUID};
+
+    pub const QDC_ONLY_ACTIVE_PATHS: u32 = 0x00000002;
+    pub const DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME: i32 = 1;
+    pub const DISPLAYCONFIG_DEVICE_INFO_GET_DPI_SCALE: i32 = -3; // undocumented
+    pub const DISPLAYCONFIG_DEVICE_INFO_SET_DPI_SCALE: i32 = -4; // undocumented
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct DISPLAYCONFIG_DEVICE_INFO_HEADER {
+        pub r#type: i32,
+        pub size: u32,
+        pub adapterId: LUID,
+        pub id: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct DISPLAYCONFIG_SOURCE_DEVICE_NAME {
+        pub header: DISPLAYCONFIG_DEVICE_INFO_HEADER,
+        pub viewGdiDeviceName: [u16; 32],
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct DISPLAYCONFIG_RATIONAL {
+        pub Numerator: u32,
+        pub Denominator: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct DISPLAYCONFIG_PATH_SOURCE_INFO {
+        pub adapterId: LUID,
+        pub id: u32,
+        pub modeInfoIdx: u32,
+        pub statusFlags: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct DISPLAYCONFIG_PATH_TARGET_INFO {
+        pub adapterId: LUID,
+        pub id: u32,
+        pub modeInfoIdx: u32,
+        pub outputTechnology: u32,
+        pub rotation: u32,
+        pub scaling: u32,
+        pub refreshRate: DISPLAYCONFIG_RATIONAL,
+        pub scanLineOrdering: u32,
+        pub targetAvailable: BOOL,
+        pub statusFlags: u32,
+    }
+
+    #[repr(C)]
+    #[derive(Clone, Copy, Default)]
+    pub struct DISPLAYCONFIG_PATH_INFO {
+        pub sourceInfo: DISPLAYCONFIG_PATH_SOURCE_INFO,
+        pub targetInfo: DISPLAYCONFIG_PATH_TARGET_INFO,
+        pub flags: u32,
+    }
+
+    // Oversized union payload as in test.py to satisfy API
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct DISPLAYCONFIG_MODE_INFO {
+        pub infoType: u32,
+        pub id: u32,
+        pub adapterId: LUID,
+        pub _blob: [u8; 128],
+    }
+
+    // Intentionally no Default impl: we construct instances using `zeroed()`
+
+    #[link(name = "user32")]
+    extern "system" {
+        pub fn GetDisplayConfigBufferSizes(
+            flags: u32,
+            num_paths: *mut u32,
+            num_modes: *mut u32,
+        ) -> i32;
+
+        pub fn QueryDisplayConfig(
+            flags: u32,
+            num_paths: *mut u32,
+            path_info_array: *mut DISPLAYCONFIG_PATH_INFO,
+            mode_info_array_count: *mut u32,
+            mode_info_array: *mut DISPLAYCONFIG_MODE_INFO,
+            current_topology_id: *mut core::ffi::c_void,
+        ) -> i32;
+
+        pub fn DisplayConfigGetDeviceInfo(packet: *mut DISPLAYCONFIG_DEVICE_INFO_HEADER) -> i32;
+        pub fn DisplayConfigSetDeviceInfo(packet: *mut DISPLAYCONFIG_DEVICE_INFO_HEADER) -> i32;
+    }
+}
+
+#[allow(dead_code)]
+fn get_scales_for_device(device_name: &str) -> Result<Vec<ScaleInfo>, String> {
+    use crate::winDisplays::displayconfig_ffi::*;
+    use std::mem::{size_of, zeroed};
+    use windows::Win32::Foundation::LUID;
+
+    #[repr(C)]
+    struct DpiScaleGetStruct {
+        header: DISPLAYCONFIG_DEVICE_INFO_HEADER,
+        min_scale_rel: i32,
+        cur_scale_rel: i32,
+        max_scale_rel: i32,
+    }
+
+    // Common Windows scaling steps
+    const DPI_VALS: [i32; 12] = [100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500];
+
+    // Resolve adapterId + sourceId for the given device name
+    let (adapter_id, source_id): (LUID, u32) = {
+        let mut num_paths: u32 = 0;
+        let mut num_modes: u32 = 0;
+        unsafe {
+            let rc =
+                GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut num_paths, &mut num_modes);
+            if rc != 0 {
+                return Err(format!("GetDisplayConfigBufferSizes failed: {}", rc));
+            }
+        }
+
+        let mut paths: Vec<DISPLAYCONFIG_PATH_INFO> = vec![unsafe { zeroed() }; num_paths as usize];
+        let mut modes: Vec<DISPLAYCONFIG_MODE_INFO> = vec![unsafe { zeroed() }; num_modes as usize];
+        unsafe {
+            let rc = QueryDisplayConfig(
+                QDC_ONLY_ACTIVE_PATHS,
+                &mut num_paths,
+                paths.as_mut_ptr(),
+                &mut num_modes,
+                modes.as_mut_ptr(),
+                core::ptr::null_mut(),
+            );
+            if rc != 0 {
+                return Err(format!("QueryDisplayConfig failed: {}", rc));
+            }
+        }
+
+        let mut found: Option<(LUID, u32)> = None;
+        for p in &paths {
+            let mut src_name: DISPLAYCONFIG_SOURCE_DEVICE_NAME = unsafe { zeroed() };
+            src_name.header.size = size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32;
+            src_name.header.adapterId = p.sourceInfo.adapterId;
+            src_name.header.id = p.sourceInfo.id;
+            // SAFETY: using documented GET_SOURCE_NAME
+            src_name.header.r#type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+            let rc = unsafe { DisplayConfigGetDeviceInfo(&mut src_name.header) };
+            if rc != 0 {
+                continue;
+            }
+            let name = widestr_to_string(&src_name.viewGdiDeviceName);
+            if name == device_name {
+                found = Some((p.sourceInfo.adapterId, p.sourceInfo.id));
+                break;
+            }
+        }
+        found.ok_or_else(|| "Could not map device name to DisplayConfig source".to_string())?
+    };
+
+    // Build GET packet
+    let mut pkt = DpiScaleGetStruct {
+        header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
+            r#type: DISPLAYCONFIG_DEVICE_INFO_GET_DPI_SCALE, // undocumented
+            size: size_of::<DpiScaleGetStruct>() as u32,
+            adapterId: adapter_id,
+            id: source_id,
+        },
+        min_scale_rel: 0,
+        cur_scale_rel: 0,
+        max_scale_rel: 0,
+    };
+
+    let rc = unsafe { DisplayConfigGetDeviceInfo(&mut pkt.header) };
+    if rc != 0 {
+        return Err(format!(
+            "DisplayConfigGetDeviceInfo(GET_DPI) failed: {}",
+            rc
+        ));
+    }
+
+    println!("pkt min: {:?}", pkt.min_scale_rel);
+    println!("pkt cur: {:?}", pkt.cur_scale_rel);
+    println!("pkt max: {:?}", pkt.max_scale_rel);
+
+    // Relative semantics:
+    // - min_scale_rel: steps DOWN from recommended to reach minimum (100%).
+    // - cur_scale_rel: steps from recommended to current.
+    // - max_scale_rel: steps UP from recommended to maximum.
+    // So:
+    // recommended_idx = -min_scale_rel
+    // min_idx = recommended_idx + min_scale_rel (usually 0)
+    // max_idx = recommended_idx + max_scale_rel
+    let recommended_idx_i32 = -pkt.min_scale_rel;
+    let recommended_idx = recommended_idx_i32.clamp(0, (DPI_VALS.len() as i32) - 1) as usize;
+
+    let mut min_idx = (recommended_idx_i32 + pkt.min_scale_rel).max(0) as usize;
+    let mut max_idx =
+        (recommended_idx_i32 + pkt.max_scale_rel).min((DPI_VALS.len() as i32) - 1) as usize;
+    if min_idx > max_idx {
+        core::mem::swap(&mut min_idx, &mut max_idx);
+    }
+
+    let mut out: Vec<ScaleInfo> = Vec::new();
+    for idx in min_idx..=max_idx {
+        let scale = (DPI_VALS[idx] as f32) / 100.0;
+        out.push(ScaleInfo {
+            scale,
+            is_recommended: idx == recommended_idx,
+        });
+    }
+    Ok(out)
+}
+
+fn set_monitor_scale_windows(device_name: &str, scale_percent: u32) -> Result<(), String> {
+    use crate::winDisplays::displayconfig_ffi::*;
+    use std::mem::{size_of, zeroed};
+    use windows::Win32::Foundation::LUID;
+
+    #[repr(C)]
+    struct DpiScaleGetStruct {
+        header: DISPLAYCONFIG_DEVICE_INFO_HEADER,
+        min_scale_rel: i32,
+        cur_scale_rel: i32,
+        max_scale_rel: i32,
+    }
+
+    #[repr(C)]
+    struct DpiScaleSetStruct {
+        header: DISPLAYCONFIG_DEVICE_INFO_HEADER,
+        scale_rel: i32,
+    }
+
+    const DPI_VALS: [i32; 12] = [100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500];
+
+    // Validate input
+    let target_idx = DPI_VALS
+        .iter()
+        .position(|v| *v == scale_percent as i32)
+        .ok_or_else(|| {
+            format!(
+                "Unsupported DPI {}%. Supported: {:?}",
+                scale_percent, DPI_VALS
+            )
+        })? as i32;
+
+    // Resolve adapterId + sourceId for the given device name
+    let (adapter_id, source_id): (LUID, u32) = {
+        let mut num_paths: u32 = 0;
+        let mut num_modes: u32 = 0;
+        unsafe {
+            let rc =
+                GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut num_paths, &mut num_modes);
+            if rc != 0 {
+                return Err(format!("GetDisplayConfigBufferSizes failed: {}", rc));
+            }
+        }
+
+        let mut paths: Vec<DISPLAYCONFIG_PATH_INFO> = vec![unsafe { zeroed() }; num_paths as usize];
+        let mut modes: Vec<DISPLAYCONFIG_MODE_INFO> = vec![unsafe { zeroed() }; num_modes as usize];
+        unsafe {
+            let rc = QueryDisplayConfig(
+                QDC_ONLY_ACTIVE_PATHS,
+                &mut num_paths,
+                paths.as_mut_ptr(),
+                &mut num_modes,
+                modes.as_mut_ptr(),
+                core::ptr::null_mut(),
+            );
+            if rc != 0 {
+                return Err(format!("QueryDisplayConfig failed: {}", rc));
+            }
+        }
+
+        let mut found: Option<(LUID, u32)> = None;
+        for p in &paths {
+            let mut src_name: DISPLAYCONFIG_SOURCE_DEVICE_NAME = unsafe { zeroed() };
+            src_name.header.size = size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32;
+            src_name.header.adapterId = p.sourceInfo.adapterId;
+            src_name.header.id = p.sourceInfo.id;
+            src_name.header.r#type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+            let rc = unsafe { DisplayConfigGetDeviceInfo(&mut src_name.header) };
+            if rc != 0 {
+                continue;
+            }
+            let name = widestr_to_string(&src_name.viewGdiDeviceName);
+            if name == device_name {
+                found = Some((p.sourceInfo.adapterId, p.sourceInfo.id));
+                break;
+            }
+        }
+        found.ok_or_else(|| "Could not map device name to DisplayConfig source".to_string())?
+    };
+
+    // Fetch recommended index via GET packet
+    let mut get_pkt = DpiScaleGetStruct {
+        header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
+            r#type: DISPLAYCONFIG_DEVICE_INFO_GET_DPI_SCALE,
+            size: size_of::<DpiScaleGetStruct>() as u32,
+            adapterId: adapter_id,
+            id: source_id,
+        },
+        min_scale_rel: 0,
+        cur_scale_rel: 0,
+        max_scale_rel: 0,
+    };
+    let rc = unsafe { DisplayConfigGetDeviceInfo(&mut get_pkt.header) };
+    if rc != 0 {
+        return Err(format!(
+            "DisplayConfigGetDeviceInfo(GET_DPI) failed: {}",
+            rc
+        ));
+    }
+    // Compute recommended and bounds from relative values
+    let recommended_idx: i32 = -get_pkt.min_scale_rel;
+    let min_idx: i32 = (recommended_idx + get_pkt.min_scale_rel).max(0);
+    let max_idx: i32 = (recommended_idx + get_pkt.max_scale_rel).min((DPI_VALS.len() as i32) - 1);
+
+    if target_idx < min_idx || target_idx > max_idx {
+        return Err(format!(
+            "Unsupported DPI {}% for this display. Supported range: {}%-{}%",
+            scale_percent, DPI_VALS[min_idx as usize], DPI_VALS[max_idx as usize]
+        ));
+    }
+
+    let rel = target_idx - recommended_idx;
+
+    // Build SET packet
+    let mut set_pkt = DpiScaleSetStruct {
+        header: DISPLAYCONFIG_DEVICE_INFO_HEADER {
+            r#type: DISPLAYCONFIG_DEVICE_INFO_SET_DPI_SCALE, // undocumented
+            size: size_of::<DpiScaleSetStruct>() as u32,
+            adapterId: adapter_id,
+            id: source_id,
+        },
+        scale_rel: rel,
+    };
+    let rc = unsafe { DisplayConfigSetDeviceInfo(&mut set_pkt.header) };
+    if rc != 0 {
+        return Err(format!(
+            "DisplayConfigSetDeviceInfo(SET_DPI) failed: {}",
+            rc
+        ));
+    }
+    Ok(())
+}
+
 fn widestr_to_string(buf: &[u16]) -> String {
     let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
     String::from_utf16_lossy(&buf[..len])
@@ -781,24 +1188,28 @@ fn widestr_to_string(buf: &[u16]) -> String {
 fn to_wide_null_terminated(s: &str) -> Vec<u16> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
-    OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+    OsStr::new(s)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 fn identify_monitors_windows(_app_handle: tauri::AppHandle) -> Result<(), String> {
     use std::mem::zeroed;
-    use windows::Win32::Foundation::{COLORREF, HWND, HINSTANCE, LRESULT, RECT};
+    use windows::Win32::Foundation::{COLORREF, HINSTANCE, HWND, LRESULT, RECT};
     use windows::Win32::Graphics::Gdi::{
-        BeginPaint, CreateFontW, DeleteObject, EndPaint, SelectObject, SetBkMode, SetTextColor, TextOutW, HFONT,
-        PAINTSTRUCT, TRANSPARENT, FW_BOLD, DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-        DEFAULT_PITCH,
+        BeginPaint, CreateFontW, DeleteObject, EndPaint, SelectObject, SetBkMode, SetTextColor,
+        TextOutW, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_PITCH, DEFAULT_QUALITY, FW_BOLD,
+        HFONT, OUT_TT_PRECIS, PAINTSTRUCT, TRANSPARENT,
     };
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DestroyWindow, DispatchMessageW, GetClientRect, IsWindow, LoadCursorW, PeekMessageW,
-        RegisterClassW, SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow,
-        TranslateMessage, UnregisterClassW, CS_HREDRAW, CS_VREDRAW, GWLP_USERDATA, HWND_TOPMOST, IDC_ARROW,
-        LWA_ALPHA, MSG, PM_REMOVE, SW_SHOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, WNDCLASSW, WM_CREATE, WM_DESTROY,
-        WM_PAINT, WM_QUIT, WM_TIMER, WS_EX_LAYERED, WS_EX_TOPMOST, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_POPUP,
+        CreateWindowExW, DestroyWindow, DispatchMessageW, GetClientRect, IsWindow, LoadCursorW,
+        PeekMessageW, RegisterClassW, SetLayeredWindowAttributes, SetTimer, SetWindowLongPtrW,
+        SetWindowPos, ShowWindow, TranslateMessage, UnregisterClassW, CS_HREDRAW, CS_VREDRAW,
+        GWLP_USERDATA, HWND_TOPMOST, IDC_ARROW, LWA_ALPHA, MSG, PM_REMOVE, SWP_NOACTIVATE,
+        SWP_NOMOVE, SWP_NOSIZE, SW_SHOW, WM_CREATE, WM_DESTROY, WM_PAINT, WM_QUIT, WM_TIMER,
+        WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
     };
 
     let monitors = get_all_monitors_windows()?;
@@ -912,18 +1323,19 @@ unsafe extern "system" fn overlay_window_proc(
 ) -> windows::Win32::Foundation::LRESULT {
     use windows::Win32::Foundation::{COLORREF, LRESULT, RECT};
     use windows::Win32::Graphics::Gdi::{
-        BeginPaint, CreateFontW, DeleteObject, EndPaint, SelectObject, SetBkMode, SetTextColor, TextOutW, HFONT,
-        PAINTSTRUCT, TRANSPARENT, FW_BOLD, DEFAULT_CHARSET, OUT_TT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-        DEFAULT_PITCH,
+        BeginPaint, CreateFontW, DeleteObject, EndPaint, SelectObject, SetBkMode, SetTextColor,
+        TextOutW, CLIP_DEFAULT_PRECIS, DEFAULT_CHARSET, DEFAULT_PITCH, DEFAULT_QUALITY, FW_BOLD,
+        HFONT, OUT_TT_PRECIS, PAINTSTRUCT, TRANSPARENT,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        DestroyWindow, GetClientRect, GetWindowLongPtrW, KillTimer, SetWindowLongPtrW, GWLP_USERDATA, WM_CREATE,
-        WM_DESTROY, WM_PAINT, WM_TIMER,
+        DestroyWindow, GetClientRect, GetWindowLongPtrW, KillTimer, SetWindowLongPtrW,
+        GWLP_USERDATA, WM_CREATE, WM_DESTROY, WM_PAINT, WM_TIMER,
     };
 
     match msg {
         WM_CREATE => {
-            let create_struct = lparam.0 as *const windows::Win32::UI::WindowsAndMessaging::CREATESTRUCTW;
+            let create_struct =
+                lparam.0 as *const windows::Win32::UI::WindowsAndMessaging::CREATESTRUCTW;
             if !create_struct.is_null() {
                 let monitor_number_ptr = unsafe { (*create_struct).lpCreateParams as *mut i32 };
                 if !monitor_number_ptr.is_null() {
@@ -992,5 +1404,3 @@ unsafe extern "system" fn overlay_window_proc(
         },
     }
 }
-
-

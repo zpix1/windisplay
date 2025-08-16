@@ -11,9 +11,24 @@ impl FakeDisplays {
 impl Displays for FakeDisplays {
     fn get_all_monitors(&self) -> Result<Vec<DisplayInfo>, String> {
         let modes = vec![
-            Resolution { width: 1920, height: 1080, bits_per_pixel: 32, refresh_hz: 60 },
-            Resolution { width: 2560, height: 1440, bits_per_pixel: 32, refresh_hz: 60 },
-            Resolution { width: 3840, height: 2160, bits_per_pixel: 32, refresh_hz: 60 },
+            Resolution {
+                width: 1920,
+                height: 1080,
+                bits_per_pixel: 32,
+                refresh_hz: 60,
+            },
+            Resolution {
+                width: 2560,
+                height: 1440,
+                bits_per_pixel: 32,
+                refresh_hz: 60,
+            },
+            Resolution {
+                width: 3840,
+                height: 2160,
+                bits_per_pixel: 32,
+                refresh_hz: 60,
+            },
         ];
 
         let displays = (0..4)
@@ -40,6 +55,7 @@ impl Displays for FakeDisplays {
                 built_in: false,
                 active: false,
                 scale: if i == 0 { 1.25 } else { 1.0 },
+                scales: vec![],
             })
             .collect();
 
@@ -57,7 +73,11 @@ impl Displays for FakeDisplays {
     }
 
     fn get_monitor_brightness(&self, _device_name: String) -> Result<BrightnessInfo, String> {
-        Ok(BrightnessInfo { min: 0, current: 50, max: 100 })
+        Ok(BrightnessInfo {
+            min: 0,
+            current: 50,
+            max: 100,
+        })
     }
 
     fn set_monitor_brightness(&self, _device_name: String, _percent: u32) -> Result<(), String> {
@@ -68,7 +88,11 @@ impl Displays for FakeDisplays {
         Ok(())
     }
 
-    fn set_monitor_orientation(&self, _device_name: String, _orientation_degrees: u32) -> Result<(), String> {
+    fn set_monitor_orientation(
+        &self,
+        _device_name: String,
+        _orientation_degrees: u32,
+    ) -> Result<(), String> {
         Ok(())
     }
 
@@ -76,5 +100,3 @@ impl Displays for FakeDisplays {
         Ok(())
     }
 }
-
-
