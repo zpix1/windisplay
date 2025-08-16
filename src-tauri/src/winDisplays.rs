@@ -124,6 +124,43 @@ fn to_lower(s: &str) -> String {
     s.to_ascii_lowercase()
 }
 
+// Runs a PowerShell script invisibly and returns stdout when successful
+fn run_powershell_hidden(script: &str) -> Option<String> {
+    let candidates: &[&str] = &[
+        "pwsh",
+        "powershell",
+        r"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    ];
+    for exe in candidates {
+        let mut cmd = Command::new(exe);
+        cmd.args([
+            "-NoProfile",
+            "-NoLogo",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ]);
+        #[cfg(windows)]
+        {
+            // CREATE_NO_WINDOW
+            cmd.creation_flags(0x08000000);
+        }
+        if let Ok(out) = cmd.output() {
+            if out.status.success() {
+                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                if !stdout.trim().is_empty() {
+                    return Some(stdout);
+                }
+            }
+        }
+    }
+    None
+}
+
 fn fetch_edid_metadata_via_powershell() -> Vec<PsEdidEntry> {
     // PowerShell script adapted from test.py to gather EDID metadata
     let script = r#"
@@ -165,44 +202,7 @@ foreach ($m in $ids) {
 $results | ConvertTo-Json -Depth 4
 "#;
 
-    // Try pwsh, then powershell, then full path fallback
-    let candidates: &[&str] = &[
-        "pwsh",
-        "powershell",
-        r"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-    ];
-    let mut raw_output: Option<String> = None;
-    for exe in candidates {
-        let mut cmd = Command::new(exe);
-        cmd.args([
-            "-NoProfile",
-            "-NoLogo",
-            "-NonInteractive",
-            "-WindowStyle",
-            "Hidden",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            script,
-        ]);
-        #[cfg(windows)]
-        {
-            // CREATE_NO_WINDOW
-            cmd.creation_flags(0x08000000);
-        }
-        let output = cmd.output();
-        if let Ok(out) = output {
-            if out.status.success() {
-                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                if !stdout.trim().is_empty() {
-                    raw_output = Some(stdout);
-                    break;
-                }
-            }
-        }
-    }
-
-    let Some(raw) = raw_output else {
+    let Some(raw) = run_powershell_hidden(script) else {
         return Vec::new();
     };
     // Parse JSON, tolerate either array or single object
@@ -789,7 +789,8 @@ fn with_first_physical_monitor<
 fn get_monitor_brightness_windows(device_name: String) -> Result<BrightnessInfo, String> {
     use windows::Win32::Devices::Display::GetMonitorBrightness;
 
-    with_first_physical_monitor(&device_name, |pm| {
+    match with_first_physical_monitor(&device_name, |pm| {
+        return Err("KEK failed (monitor may not support DDC/CI)".to_string());
         let mut min = 0u32;
         let mut cur = 0u32;
         let mut max = 0u32;
@@ -802,14 +803,24 @@ fn get_monitor_brightness_windows(device_name: String) -> Result<BrightnessInfo,
             current: cur,
             max,
         })
-    })
+    }) {
+        Ok(b) => Ok(b),
+        Err(_e) => {
+            // Fallback: WMI (internal displays)
+            if let Some(b) = wmi_get_brightness_via_powershell() {
+                Ok(b)
+            } else {
+                Err("Failed to get brightness via DDC/CI and WMI fallback".to_string())
+            }
+        }
+    }
 }
 
 fn set_monitor_brightness_windows(device_name: String, percent: u32) -> Result<(), String> {
     use windows::Win32::Devices::Display::{GetMonitorBrightness, SetMonitorBrightness};
 
     let pct = percent.min(100);
-    with_first_physical_monitor(&device_name, |pm| {
+    match with_first_physical_monitor(&device_name, |pm| {
         let mut min = 0u32;
         let mut cur = 0u32;
         let mut max = 0u32;
@@ -824,7 +835,65 @@ fn set_monitor_brightness_windows(device_name: String, percent: u32) -> Result<(
             return Err("SetMonitorBrightness failed".to_string());
         }
         Ok(())
-    })
+    }) {
+        Ok(()) => Ok(()),
+        Err(_e) => {
+            // Fallback to WMI (usually internal panel only)
+            if wmi_set_brightness_via_powershell(pct) {
+                Ok(())
+            } else {
+                Err("Failed to set brightness via DDC/CI and WMI fallback".to_string())
+            }
+        }
+    }
+}
+
+// WMI brightness fallback helpers (Windows internal displays)
+fn wmi_get_brightness_via_powershell() -> Option<BrightnessInfo> {
+    let script = r#"
+$inst = Get-CimInstance -Namespace root/WMI -Class WmiMonitorBrightness -ErrorAction SilentlyContinue |
+  Where-Object { $_.Active -eq $true } |
+  Select-Object -First 1
+if ($inst) {
+  [pscustomobject]@{ Current = [uint32]$inst.CurrentBrightness } | ConvertTo-Json -Compress
+}
+"#;
+    let raw = run_powershell_hidden(script)?;
+    if raw.trim().is_empty() {
+        return None;
+    }
+    #[derive(Deserialize)]
+    struct Js {
+        #[serde(rename = "Current")]
+        current: Option<u32>,
+    }
+    if let Ok(js) = serde_json::from_str::<Js>(&raw) {
+        if let Some(cur) = js.current {
+            return Some(BrightnessInfo {
+                min: 0,
+                current: cur.min(100),
+                max: 100,
+            });
+        }
+    }
+    None
+}
+
+fn wmi_set_brightness_via_powershell(percent: u32) -> bool {
+    let pct = percent.min(100);
+    let script = format!(
+        r#"$b = [byte]({pct});
+$inst = Get-CimInstance -Namespace root/WMI -Class WmiMonitorBrightnessMethods -ErrorAction SilentlyContinue |
+  Where-Object {{ $_.Active -eq $true }} | Select-Object -First 1
+if ($inst) {{
+  $r = Invoke-CimMethod -InputObject $inst -MethodName WmiSetBrightness -Arguments @{{ Timeout = 0; Brightness = $b }} -ErrorAction SilentlyContinue;
+  if ($r -and ($r.ReturnValue -eq 0)) {{ 'OK' }}
+}}"#
+    );
+    if let Some(out) = run_powershell_hidden(&script) {
+        return out.trim().starts_with("OK");
+    }
+    false
 }
 
 fn get_monitor_scale_for_device(device_name: &str) -> f32 {

@@ -34,9 +34,9 @@ export function About() {
         </Link>
       </span>
       <div className="about-description">
-        Manage your display settings quickly from the tray <br />
-        Created by <Link href="https://github.com/zpix1">@zpix1</Link> <br />
-        Support me on <Link href="https://www.patreon.com/zpix1">Patreon</Link>
+        Manage your display settings quickly from the tray. <br />
+        Created by <Link href="https://github.com/zpix1">@zpix1</Link>. <br />
+        Support me on <Link href="https://www.patreon.com/zpix1">Patreon</Link>.
       </div>
     </div>
   );
