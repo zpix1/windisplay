@@ -49,7 +49,7 @@ function App() {
           </div>
         )}
 
-        {monitors.length > 0 && (
+        {monitors.length > 1 && (
           <Selector
             ariaLabel="Select monitor"
             items={monitors}
@@ -69,7 +69,9 @@ function App() {
                 manufacturer={selectedMonitor.manufacturer}
               />
               <span className="monitor-name">
-                <span className="model">{selectedMonitor.model}</span>
+                <span className="model">
+                  {selectedMonitor.model || selectedMonitor.display_name}
+                </span>
                 <span className="connection">{selectedMonitor.connection}</span>
               </span>
             </div>

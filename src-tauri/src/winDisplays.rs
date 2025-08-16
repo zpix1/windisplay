@@ -1,6 +1,8 @@
 use crate::displays::{BrightnessInfo, DisplayInfo, Displays, Resolution, ScaleInfo};
 use serde::Deserialize;
 use serde_json::Value;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::process::Command;
 
 pub struct WinDisplays;
@@ -171,15 +173,24 @@ $results | ConvertTo-Json -Depth 4
     ];
     let mut raw_output: Option<String> = None;
     for exe in candidates {
-        let output = Command::new(exe)
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                script,
-            ])
-            .output();
+        let mut cmd = Command::new(exe);
+        cmd.args([
+            "-NoProfile",
+            "-NoLogo",
+            "-NonInteractive",
+            "-WindowStyle",
+            "Hidden",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ]);
+        #[cfg(windows)]
+        {
+            // CREATE_NO_WINDOW
+            cmd.creation_flags(0x08000000);
+        }
+        let output = cmd.output();
         if let Ok(out) = output {
             if out.status.success() {
                 let stdout = String::from_utf8_lossy(&out.stdout).to_string();
