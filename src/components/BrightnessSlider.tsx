@@ -58,7 +58,7 @@ export function BrightnessSlider({
     [deviceName]
   );
 
-  const throttledApply = useThrottle(apply, requiresWmi ? 1000 : 100);
+  const throttledApply = useThrottle(apply, requiresWmi ? 500 : 100);
 
   return (
     <div className="field">

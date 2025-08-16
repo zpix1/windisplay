@@ -100,13 +100,13 @@ fn query_preferred_native_resolution(device_name: &str) -> Option<(u32, u32)> {
 
 #[derive(Debug, Clone, Default, Deserialize)]
 struct PsEdidEntry {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "empty_string_if_null")]
     Manufacturer: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "empty_string_if_null")]
     Model: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "empty_string_if_null")]
     SerialNumber: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "empty_string_if_null")]
     ProductCodeId: String,
     #[serde(default)]
     WeekOfManufacture: Option<u32>,
@@ -118,6 +118,14 @@ struct PsEdidEntry {
     VideoOutputTechnology: Option<u32>,
     #[serde(default)]
     Active: Option<bool>,
+}
+
+fn empty_string_if_null<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    Ok(opt.unwrap_or_default())
 }
 
 fn to_lower(s: &str) -> String {
@@ -171,10 +179,21 @@ fn run_powershell_hidden(script: &str) -> Option<String> {
                     out.stdout.len(),
                     out.stderr.len()
                 );
-                if !stderr.trim().is_empty() {
+                // Log full outputs as requested
+                if !stdout.is_empty() {
+                    log::debug!(
+                        "run_powershell_hidden: FULL STDOUT for '{}':\n{}",
+                        exe,
+                        stdout
+                    );
+                } else {
+                    log::debug!("run_powershell_hidden: STDOUT empty for '{}'", exe);
+                }
+                if !stderr.is_empty() {
                     log::warn!(
-                        "run_powershell_hidden: stderr (first 400 chars): {}",
-                        &stderr.chars().take(400).collect::<String>()
+                        "run_powershell_hidden: FULL STDERR for '{}':\n{}",
+                        exe,
+                        stderr
                     );
                 }
                 if success {
