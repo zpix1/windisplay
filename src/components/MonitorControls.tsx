@@ -4,7 +4,6 @@ import { RefreshRateSlider } from "./RefreshRateSlider";
 import { aspectKey, DisplayInfo } from "../lib/Resolutions";
 import { OrientationSelector } from "./OrientationTextToggle";
 import { ScaleSlider } from "./ScaleSlider.tsx";
-import { TextToggle } from "./ui/TextToggle/TextToggle.tsx";
 import { HdrToggle } from "./HdrToggle.tsx";
 
 type MonitorControlsProps = {

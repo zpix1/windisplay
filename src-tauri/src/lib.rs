@@ -100,9 +100,10 @@ pub fn run() {
                 // Apply vibrancy/blur effects based on platform
 
                 // Hide on focus out
+                let window_for_event = window.clone();
                 window.on_window_event(move |event| {
                     if let WindowEvent::Focused(false) = event {
-                        let _ = win_clone.hide();
+                        let _ = window_for_event.hide();
                     }
                 });
                 // Ensure the window does not appear in the taskbar
