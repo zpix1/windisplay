@@ -11,6 +11,9 @@
     "core:default",
     "core:webview:allow-create-webview-window",
     "opener:default",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
     {
       "identifier": "opener:allow-open-path",
       "allow": [
