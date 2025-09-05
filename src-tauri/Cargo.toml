@@ -1,8 +1,8 @@
 [package]
-name = "windisplay"
+name = "WinDisplay"
 version = "0.3.5"
-description = "A Tauri App"
-authors = ["you"]
+description = "Like BetterDisplay, but for Windows. Change resolution and refresh rate of your monitors from your system tray."
+authors = ["zpix1"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -33,6 +33,8 @@ windows = { version = "0.56", features = [
 ] }
 tauri-plugin-opener = "2"
 tauri-plugin-log = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-autostart = "2"
 log = "0.4"
 
 [features]

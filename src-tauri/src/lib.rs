@@ -12,10 +12,12 @@ pub fn run() {
         tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
         Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
     };
+    use tauri_plugin_notification::NotificationExt;
 
     tauri::Builder::default()
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             displays::get_all_monitors,
             displays::set_monitor_resolution,
@@ -27,6 +29,14 @@ pub fn run() {
             displays::enable_hdr,
         ])
         .setup(|app| {
+            // Show a notification on startup to inform the user the app is running in the tray
+            app.notification()
+                .builder()
+                .title("WinDisplay")
+                .body("WinDisplay is running in the system tray.")
+                .show()
+                .unwrap();
+
             // Build a tray context menu
             let show_item = MenuItem::with_id(app, "show", "Show", true, Some(""))?;
             let about_item = MenuItem::with_id(app, "about", "About", true, Some(""))?;
