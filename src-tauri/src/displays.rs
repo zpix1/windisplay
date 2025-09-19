@@ -39,6 +39,9 @@ pub struct DisplayInfo {
     pub scales: Vec<ScaleInfo>,
     // HDR status: "unsupported", "on", "off"
     pub hdr_status: String,
+    // Whether DDC/CI input switch (VCP 0x60) appears supported for this monitor
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supports_input_switch: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -67,6 +70,9 @@ pub trait Displays {
     fn identify_monitors(&self, app_handle: tauri::AppHandle) -> Result<(), String>;
     fn set_monitor_scale(&self, device_name: String, scale_percent: u32) -> Result<(), String>;
     fn enable_hdr(&self, device_name: String, enable: bool) -> Result<(), String>;
+    fn set_monitor_input_source(&self, device_name: String, input: String) -> Result<(), String>;
+    fn get_monitor_input_source(&self, device_name: String) -> Result<String, String>;
+    fn get_monitor_ddc_caps(&self, device_name: String) -> Result<String, String>;
 }
 
 fn active_provider() -> Box<dyn Displays> {
@@ -131,4 +137,19 @@ pub fn set_monitor_scale(device_name: String, scale_percent: u32) -> Result<(), 
 #[tauri::command]
 pub fn enable_hdr(device_name: String, enable: bool) -> Result<(), String> {
     active_provider().enable_hdr(device_name, enable)
+}
+
+#[tauri::command]
+pub fn set_monitor_input_source(device_name: String, input: String) -> Result<(), String> {
+    active_provider().set_monitor_input_source(device_name, input)
+}
+
+#[tauri::command]
+pub fn get_monitor_input_source(device_name: String) -> Result<String, String> {
+    active_provider().get_monitor_input_source(device_name)
+}
+
+#[tauri::command]
+pub fn get_monitor_ddc_caps(device_name: String) -> Result<String, String> {
+    active_provider().get_monitor_ddc_caps(device_name)
 }

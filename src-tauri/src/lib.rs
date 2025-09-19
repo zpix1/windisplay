@@ -41,6 +41,9 @@ pub fn run() {
             displays::identify_monitors,
             displays::set_monitor_scale,
             displays::enable_hdr,
+            displays::set_monitor_input_source,
+            displays::get_monitor_input_source,
+            displays::get_monitor_ddc_caps,
         ])
         .setup(|app| {
             // Enable autostart by default on first run (persist marker so user choice isn't overridden)

@@ -68,6 +68,18 @@ impl Displays for WinDisplays {
             None => Err("Failed to change HDR state".to_string()),
         }
     }
+
+    fn set_monitor_input_source(&self, device_name: String, input: String) -> Result<(), String> {
+        set_monitor_input_source_windows(device_name, input)
+    }
+
+    fn get_monitor_input_source(&self, device_name: String) -> Result<String, String> {
+        get_monitor_input_source_windows(device_name)
+    }
+
+    fn get_monitor_ddc_caps(&self, device_name: String) -> Result<String, String> {
+        get_monitor_ddc_caps_windows(device_name)
+    }
 }
 
 // Attempt to fetch a preferred/native mode using registry-stored settings for the device.
@@ -602,6 +614,12 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             None => "unsupported".to_string(),
         };
 
+        // Determine if input switch is supported: prefer probing VCP 0x60 directly
+        let supports_input_switch: Option<bool> = match has_vcp_60_windows(device_name.clone()) {
+            Ok(b) => Some(b),
+            Err(_) => None,
+        };
+
         displays.push(DisplayInfo {
             device_name,
             friendly_name,
@@ -623,6 +641,7 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             scale: scale_factor,
             scales,
             hdr_status,
+            supports_input_switch,
         });
 
         if let Some(last) = displays.last() {
@@ -963,6 +982,181 @@ fn set_monitor_brightness_windows(device_name: String, percent: u32) -> Result<(
             }
         }
     }
+}
+
+fn set_monitor_input_source_windows(device_name: String, input: String) -> Result<(), String> {
+    // DDC/CI VCP code 0x60 selects input source. Values are VESA defined, common ones below.
+    // We'll accept a human string and map to code, unknown => parse as number.
+    fn map_input_to_code(s: &str) -> Option<u32> {
+        let k = s.trim().to_ascii_lowercase();
+        match k.as_str() {
+            // VGA / Analog
+            "vga" | "vga1" | "01" => Some(0x01),
+            "vga2" | "02" => Some(0x02),
+            // DVI
+            "dvi" | "dvi1" | "03" => Some(0x03),
+            "dvi2" | "04" => Some(0x04),
+            // DisplayPort
+            "displayport" | "dp" | "dp1" | "0F" => Some(0x0F),
+            "dp2" | "10" => Some(0x10),
+            // HDMI
+            "hdmi" | "hdmi1" | "11" => Some(0x11),
+            "hdmi2" | "12" => Some(0x12),
+            "hdmi3" | "13" => Some(0x13),
+            // USB-C / Thunderbolt (often DP Alt-Mode; map to DP codes)
+            "usbc" | "usb-c" | "tb" | "thunderbolt" | "usbc1" | "19" => Some(0x19), 
+            "usbc2" | "1A" => Some(0x1A), 
+            "usbc3" | "1B" => Some(0x1B), 
+            "usbc4" | "31" => Some(0x31),
+            // LG alternative codes
+            "dp1_lg" | "D0" => Some(0xD0),
+            "dp2_usbc_lg" | "D1" => Some(0xD1),
+            "usbc_lg" | "D2" => Some(0xD2),
+            "hdmi1_lg" | "90" => Some(0x90),
+            "hdmi2_lg" | "91" => Some(0x91),
+            // Legacy sources
+            "component" | "component1" | "0C" => Some(0x0C),
+            "component2" | "0D" => Some(0x0D),
+            "component3" | "0E" => Some(0x0E),
+            "composite" | "composite1" | "05" => Some(0x05),
+            "composite2" | "06" => Some(0x06),
+            "s-video" | "svideo1" | "07" => Some(0x07),
+            "svideo2" | "08" => Some(0x08),
+            // Tuner
+            "tuner" | "tuner1" | "09" => Some(0x09),
+            "tuner2" | "0A" => Some(0x0A),
+            "tuner3" | "0B" => Some(0x0B),
+            _ => {
+                // try hex or decimal
+                if let Ok(v) = u32::from_str_radix(k.trim_start_matches("0x"), 16) {
+                    Some(v)
+                } else if let Ok(v) = k.parse::<u32>() {
+                    Some(v)
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    let code = map_input_to_code(&input).ok_or_else(|| "Unknown input label".to_string())?;
+
+    use windows::Win32::Devices::Display::SetVCPFeature;
+    with_first_physical_monitor(&device_name, |pm| {
+        let ok = unsafe { SetVCPFeature(pm.hPhysicalMonitor, 0x60, code) };
+        if ok == 0 {
+            return Err("SetVCPFeature(0x60) failed (monitor may not support input switching via DDC/CI)".to_string());
+        }
+        // Verify change was applied
+        use windows::Win32::Devices::Display::{GetVCPFeatureAndVCPFeatureReply, MC_VCP_CODE_TYPE};
+        let mut feature_type: MC_VCP_CODE_TYPE = MC_VCP_CODE_TYPE(0);
+        let mut current_value: u32 = 0;
+        let mut max_value: u32 = 0;
+        let ok2 = unsafe {
+            GetVCPFeatureAndVCPFeatureReply(
+                pm.hPhysicalMonitor,
+                0x60,
+                Some(&mut feature_type),
+                &mut current_value,
+                Some(&mut max_value),
+            )
+        };
+        if ok2 == 0 {
+            return Err("Failed to verify input switch (GetVCPFeature)".to_string());
+        }
+        let read_code = current_value & 0xFF;
+        if read_code != code {
+            return Err("Monitor ignored input change (DDC/CI)".to_string());
+        }
+        Ok(())
+    })
+}
+
+fn get_monitor_input_source_windows(device_name: String) -> Result<String, String> {
+    use windows::Win32::Devices::Display::{GetVCPFeatureAndVCPFeatureReply, MC_VCP_CODE_TYPE};
+    with_first_physical_monitor(&device_name, |pm| {
+        let mut feature_type: MC_VCP_CODE_TYPE = MC_VCP_CODE_TYPE(0);
+        let mut current_value: u32 = 0;
+        let mut max_value: u32 = 0;
+        let ok = unsafe {
+            GetVCPFeatureAndVCPFeatureReply(
+                pm.hPhysicalMonitor,
+                0x60,
+                Some(&mut feature_type),
+                &mut current_value,
+                Some(&mut max_value),
+            )
+        };
+        if ok == 0 {
+            return Err("GetVCPFeature(0x60) failed".to_string());
+        }
+        // Some monitors return extra bits in the high bytes. VCP 0x60 uses the low 8 bits.
+        let code: u32 = (current_value & 0xFF) as u32;
+        // Map a few common codes back to labels (best effort)
+        let label = match code {
+            0x01 => "vga1",
+            0x02 => "vga2",
+            0x03 => "dvi1",
+            0x04 => "dvi2",
+            0x0F => "dp1",
+            0x10 => "dp2",
+            0x11 => "hdmi1",
+            0x12 => "hdmi2",
+            0x13 => "hdmi3",
+            _ => return Ok(format!("0x{:02X}", code)),
+        };
+        Ok(label.to_string())
+    })
+}
+
+fn get_monitor_ddc_caps_windows(device_name: String) -> Result<String, String> {
+    use windows::Win32::Devices::Display::{
+        CapabilitiesRequestAndCapabilitiesReply, GetCapabilitiesStringLength,
+    };
+    with_first_physical_monitor(&device_name, |pm| {
+        let mut len: u32 = 0;
+        let ok = unsafe { GetCapabilitiesStringLength(pm.hPhysicalMonitor, &mut len) };
+        if ok == 0 || len == 0 {
+            return Err("No DDC/CI capabilities string or unsupported".to_string());
+        }
+        // Allocate buffer for capabilities string (length includes null terminator)
+        let mut buf: Vec<u8> = vec![0u8; len as usize];
+        let ok2 = unsafe { CapabilitiesRequestAndCapabilitiesReply(pm.hPhysicalMonitor, &mut buf) };
+        if ok2 == 0 {
+            return Err("Failed to read DDC/CI capabilities string".to_string());
+        }
+        // Convert C-string to Rust String
+        let nul_pos = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        let s = String::from_utf8_lossy(&buf[..nul_pos]).to_string();
+        Ok(s)
+    })
+}
+
+fn has_vcp_60_windows(device_name: String) -> Result<bool, String> {
+    use windows::Win32::Devices::Display::{GetVCPFeatureAndVCPFeatureReply, MC_VCP_CODE_TYPE};
+    with_first_physical_monitor(&device_name, |pm| {
+        let mut feature_type: MC_VCP_CODE_TYPE = MC_VCP_CODE_TYPE(0);
+        let mut current_value: u32 = 0;
+        let mut max_value: u32 = 0;
+        let ok = unsafe {
+            GetVCPFeatureAndVCPFeatureReply(
+                pm.hPhysicalMonitor,
+                0x60,
+                Some(&mut feature_type),
+                &mut current_value,
+                Some(&mut max_value),
+            )
+        };
+        if ok == 0 {
+            // Try capabilities string as fallback
+            if let Ok(cap) = get_monitor_ddc_caps_windows(device_name.clone()) {
+                let lower = cap.to_ascii_lowercase();
+                return Ok(lower.contains("vcp(") && (lower.contains(" 60") || lower.contains("(60") || lower.contains(",60")));
+            }
+            return Ok(false);
+        }
+        Ok(true)
+    })
 }
 
 // WMI brightness fallback helpers (Windows internal displays)

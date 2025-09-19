@@ -57,6 +57,7 @@ impl Displays for FakeDisplays {
                 scale: if i == 0 { 1.25 } else { 1.0 },
                 scales: vec![],
                 hdr_status: "unsupported".to_string(),
+                supports_input_switch: Some(true),
             })
             .collect();
 
@@ -103,5 +104,18 @@ impl Displays for FakeDisplays {
 
     fn enable_hdr(&self, _device_name: String, _enable: bool) -> Result<(), String> {
         Ok(())
+    }
+
+    fn set_monitor_input_source(&self, _device_name: String, _input: String) -> Result<(), String> {
+        // Pretend success in fake provider
+        Ok(())
+    }
+
+    fn get_monitor_input_source(&self, _device_name: String) -> Result<String, String> {
+        Ok("hdmi1".to_string())
+    }
+
+    fn get_monitor_ddc_caps(&self, _device_name: String) -> Result<String, String> {
+        Ok("(fake) DDC/CI supported: vcp(10 60 E0)".to_string())
     }
 }

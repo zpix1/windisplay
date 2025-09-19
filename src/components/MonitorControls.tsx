@@ -5,6 +5,7 @@ import { aspectKey, DisplayInfo } from "../lib/Resolutions";
 import { OrientationSelector } from "./OrientationTextToggle";
 import { ScaleSlider } from "./ScaleSlider.tsx";
 import { HdrToggle } from "./HdrToggle.tsx";
+import { InputSourceSelector } from "./InputSourceSelector";
 
 type MonitorControlsProps = {
   monitor: DisplayInfo;
@@ -48,6 +49,12 @@ export default function MonitorControls({
         currentScale={monitor.scale}
         scales={monitor.scales}
         disabled={disabled}
+        onError={onError}
+      />
+
+      <InputSourceSelector
+        deviceName={monitor.device_name}
+        disabled={disabled || monitor.supports_input_switch === false}
         onError={onError}
       />
 
