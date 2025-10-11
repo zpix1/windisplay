@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Input source selector for monitors
+- [Input source selector for monitors](https://github.com/zpix1/windisplay/pull/5)
 
 ### Changed
 
