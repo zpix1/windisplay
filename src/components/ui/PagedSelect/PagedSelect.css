@@ -4,6 +4,10 @@
   margin-bottom: 8px;
 }
 
+.select-input span {
+  font-size: 14px;
+}
+
 .select-trigger.button {
   width: 100%;
   height: 26px;
@@ -18,20 +22,65 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.select-menu {
-  position: absolute;
-  top: calc(100% - 1px);
+.select-overlay {
+  position: fixed;
+  top: 0;
   left: 0;
   right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.select-menu {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
   background: #fff;
   border: 1px solid #9a9a9a;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   border-radius: 13px;
+  z-index: 9999;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.select-menu-content {
   padding: 8px;
-  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+}
+
+.select-items-container {
+  height: calc(80vh - 120px);
 }
 
 .select-menu .select-item {
+  cursor: pointer;
   width: 100%;
   height: 26px;
   display: flex;
@@ -70,33 +119,47 @@
   opacity: 0.7;
 }
 
-/* When open, remove bottom margin so the menu attaches flush */
-.select-input.open {
-  margin-bottom: 0;
-}
-
 .menu-separator {
   height: 1px;
   background: #e0e0e0;
-  margin: 6px 0 8px 0;
+  margin: 4px 0 8px 0;
 }
 
 .pager {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 8px;
+  margin-bottom: 4px;
 }
 
 .pager-btn {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
-  min-width: 26px; 
-  line-height: 26px; 
-  flex: 0 0 26px; 
+  min-width: 32px; 
+  flex: 0 0 32px; 
   aspect-ratio: 1 / 1;
+  transition: all 0.2s ease;
+}
+
+.pager-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  transform: scale(1.1);
+}
+
+.pager-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pager-btn svg {
+  color: #7a7a7a;
 }
