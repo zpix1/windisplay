@@ -1004,9 +1004,9 @@ fn set_monitor_input_source_windows(device_name: String, input: String) -> Resul
             "hdmi2" | "12" => Some(0x12),
             "hdmi3" | "13" => Some(0x13),
             // USB-C / Thunderbolt (often DP Alt-Mode; map to DP codes)
-            "usbc" | "usb-c" | "tb" | "thunderbolt" | "usbc1" | "19" => Some(0x19), 
-            "usbc2" | "1A" => Some(0x1A), 
-            "usbc3" | "1B" => Some(0x1B), 
+            "usbc" | "usb-c" | "tb" | "thunderbolt" | "usbc1" | "19" => Some(0x19),
+            "usbc2" | "1A" => Some(0x1A),
+            "usbc3" | "1B" => Some(0x1B),
             "usbc4" | "31" => Some(0x31),
             // LG alternative codes
             "dp1_lg" | "D0" => Some(0xD0),
