@@ -105,5 +105,3 @@ export function PagedSelect({
     </div>
   );
 }
-
-
