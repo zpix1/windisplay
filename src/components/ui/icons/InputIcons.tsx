@@ -85,5 +85,3 @@ export function ComponentIcon({ size = 18 }: IconProps) {
     </svg>
   );
 }
-
-
