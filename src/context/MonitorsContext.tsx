@@ -7,7 +7,6 @@ import {
   useState,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { DisplayInfo } from "../lib/Resolutions";
 

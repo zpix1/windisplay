@@ -269,9 +269,8 @@ fn print_monitor_info(idx: usize, monitor: &DisplayInfo) {
         monitor.max_native.width, monitor.max_native.height, monitor.max_native.refresh_hz
     );
     println!("  Orientation:  {}°", monitor.orientation);
-    println!("  Current Scale: {}%", monitor.scale);
     println!(
-        "  Scale:        {}%",
+        "  Scale:        {}% (might be incorrect)",
         (monitor.scale * 100.0).round() as u32
     );
 

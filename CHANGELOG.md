@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.9] - 2025-11-01
+## [0.3.10] - 2025-11-01
 
 - Orientation control now uses selector, no cycling through options
 - Reactive updates, no need to restart / reload app to see changes when adding / removing monitors

@@ -92,7 +92,7 @@ export function OrientationSelector({
     />
   );
 
-  const handleSelect = async (key: string, label: string) => {
+  const handleSelect = async (key: string, _label: string) => {
     const opt = options.find((o) => o.key === key);
     if (!opt) return;
     setSelected(opt);
