@@ -193,15 +193,15 @@ pub fn run() {
             // Keep main window hidden until tray click (config also sets visible: false)
             if let Some(window) = app.get_webview_window("main") {
                 // Hide on focus out
-                let window_for_event = window.clone();
-                window.on_window_event(move |event| {
-                    if let WindowEvent::Focused(false) = event {
-                        let _ = window_for_event.hide();
-                    }
-                });
-                // Ensure the window does not appear in the taskbar
-                let _ = window.set_skip_taskbar(true);
-                let _ = window.hide();
+                // let window_for_event = window.clone();
+                // window.on_window_event(move |event| {
+                //     if let WindowEvent::Focused(false) = event {
+                //         let _ = window_for_event.hide();
+                //     }
+                // });
+                // // Ensure the window does not appear in the taskbar
+                // let _ = window.set_skip_taskbar(true);
+                // let _ = window.hide();
             }
             Ok(())
         })

@@ -1,0 +1,66 @@
+.settings-container {
+  padding: 8px;
+}
+
+.settings-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  color: #888;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  gap: 6px;
+}
+
+.settings-checkbox-label,
+.settings-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-checkbox-label {
+  gap: 5px;
+}
+
+.settings-checkbox,
+.settings-radio {
+  width: 18px;
+  height: 18px;
+  accent-color: #2b6cb0;
+}
+
+.settings-checkbox-text,
+.settings-radio-text {
+  font-size: 14px;
+  color: #1b1b1b;
+}
+
+.settings-section-title {
+  font-size: 14px;
+  color: #1b1b1b;
+  font-weight: 500;
+}
+
+.settings-radio-group {
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  padding: 4px 4px 4px 10px;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(to bottom, #f8f8f8, #eeedee);
+}

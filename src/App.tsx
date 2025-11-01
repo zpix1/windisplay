@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 import IdentifyMonitorsButton from "./components/IdentifyMonitorsButton";
 import MonitorControls from "./components/MonitorControls";
+import { Settings } from "./components/Settings/Settings";
 import { Selector } from "./components/ui/Selector/Selector";
+import { CogIcon } from "./components/ui/icons/CogIcon";
 import { MonitorIcon } from "./components/ui/icons/MonitorIcon";
 import { useMonitorsContext } from "./context/MonitorsContext";
 
@@ -12,6 +14,7 @@ function App() {
   const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
     null
   );
+  const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
   // Keep selection valid when monitors list changes
   useEffect(() => {
@@ -61,16 +64,37 @@ function App() {
           </div>
         )}
 
-        {monitors.length > 1 && (
-          <Selector
-            ariaLabel="Select monitor"
-            items={monitors}
-            selectedItem={selectedMonitor}
-            onChange={(m) => setSelectedDeviceName(m.device_name)}
-            getKey={(m) => m.device_name}
-            getLabel={(m) => monitors.indexOf(m) + 1}
-            disabled={loading}
-          />
+        {monitors.length > 1 ? (
+          <div className="monitor-selector-container">
+            <Selector
+              ariaLabel="Select monitor"
+              items={monitors}
+              selectedItem={selectedMonitor}
+              onChange={(m) => setSelectedDeviceName(m.device_name)}
+              getKey={(m) => m.device_name}
+              getLabel={(m) => monitors.indexOf(m) + 1}
+              disabled={loading}
+            />
+            <button
+              className="cog-button"
+              onClick={() => setIsSettingsOpen(true)}
+              aria-label="Open settings"
+              disabled={loading}
+            >
+              <CogIcon size={20} />
+            </button>
+          </div>
+        ) : (
+          <div className="monitor-selector-container single-button">
+            <button
+              className="cog-button standalone"
+              onClick={() => setIsSettingsOpen(true)}
+              aria-label="Open settings"
+              disabled={loading}
+            >
+              <CogIcon size={20} />
+            </button>
+          </div>
         )}
 
         {selectedMonitor && (
@@ -101,6 +125,11 @@ function App() {
           <IdentifyMonitorsButton disabled={loading} onError={setError} />
         </div>
       </div>
+
+      <Settings
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </div>
   );
 }
