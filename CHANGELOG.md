@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.3.12] - 2025-11-01
+## [0.3.13] - 2025-11-01
 
 - Fixed windoow hide bug
 

@@ -1,3 +1,5 @@
+use tauri::WindowEvent;
+
 mod cli;
 mod display_monitor;
 mod displays;
