@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.9] - 2025-11-01
+
+- Orientation control now uses selector, no cycling through options
+- Reactive updates, no need to restart / reload app to see changes when adding / removing monitors
+- CLI support - automate and create bind for WinDisplay as you like
+
 ## [0.3.8] - 2025-10-11
 
 ### Added

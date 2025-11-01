@@ -329,7 +329,6 @@ pub fn get_displays() -> Vec<Display> {
         dev_name.header.size = size_of::<DISPLAYCONFIG_TARGET_DEVICE_NAME>() as u32;
         dev_name.header.adapterId = mode.adapterId;
         dev_name.header.id = mode.id;
-        println!("mode_id: {:?}", mode.id);
         let name = unsafe {
             if DisplayConfigGetDeviceInfo(&mut dev_name.header) == 0 {
                 let friendly = widestr_to_string(&dev_name.monitorFriendlyDeviceName);

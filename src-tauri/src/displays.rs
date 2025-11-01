@@ -75,7 +75,7 @@ pub trait Displays {
     fn get_monitor_ddc_caps(&self, device_name: String) -> Result<String, String>;
 }
 
-fn active_provider() -> Box<dyn Displays> {
+pub fn active_provider() -> Box<dyn Displays> {
     #[cfg(feature = "fake-displays")]
     {
         return Box::new(crate::fakeDisplays::FakeDisplays::new());

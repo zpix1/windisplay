@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { DisplayInfo } from "../lib/Resolutions";
 
 type MonitorsContextValue = {
@@ -45,6 +47,17 @@ export function MonitorsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     reloadMonitors();
   }, []);
+
+  // Listen for display change events from the backend (Windows system events)
+  useEffect(() => {
+    const unlisten = listen("display-changed", () => {
+      reloadMonitors();
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [reloadMonitors]);
 
   const value = useMemo(
     () => ({ monitors, loading, error, setError, reloadMonitors }),

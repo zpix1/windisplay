@@ -1045,7 +1045,10 @@ fn set_monitor_input_source_windows(device_name: String, input: String) -> Resul
     with_first_physical_monitor(&device_name, |pm| {
         let ok = unsafe { SetVCPFeature(pm.hPhysicalMonitor, 0x60, code) };
         if ok == 0 {
-            return Err("SetVCPFeature(0x60) failed (monitor may not support input switching via DDC/CI)".to_string());
+            return Err(
+                "SetVCPFeature(0x60) failed (monitor may not support input switching via DDC/CI)"
+                    .to_string(),
+            );
         }
         // Verify change was applied
         use windows::Win32::Devices::Display::{GetVCPFeatureAndVCPFeatureReply, MC_VCP_CODE_TYPE};
@@ -1066,7 +1069,14 @@ fn set_monitor_input_source_windows(device_name: String, input: String) -> Resul
         }
         let read_code = current_value & 0xFF;
         if read_code != code {
-            return Err("Monitor ignored input change (DDC/CI)".to_string());
+            log::error!(
+                "Monitor ignored input change (DDC/CI 2): {} != {}",
+                read_code,
+                code
+            );
+            return Err(format!(
+                "Monitor ignored input change, it might not support DDC/CI or connection method is not supported",
+            ));
         }
         Ok(())
     })
@@ -1151,7 +1161,8 @@ fn has_vcp_60_windows(device_name: String) -> Result<bool, String> {
             // Try capabilities string as fallback
             if let Ok(cap) = get_monitor_ddc_caps_windows(device_name.clone()) {
                 let lower = cap.to_ascii_lowercase();
-                return Ok(lower.contains("vcp(") && (lower.contains(" 60") || lower.contains("(60") || lower.contains(",60")));
+                return Ok(lower.contains("vcp(")
+                    && (lower.contains(" 60") || lower.contains("(60") || lower.contains(",60")));
             }
             return Ok(false);
         }

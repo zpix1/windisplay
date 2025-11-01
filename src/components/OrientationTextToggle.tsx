@@ -1,7 +1,10 @@
 import { useMemo, useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMonitorsMutation } from "../hooks/useMonitorsMutation";
-import { TextToggle } from "./ui/TextToggle/TextToggle";
+import {
+  PagedSelect,
+  type PagedSelectItem,
+} from "./ui/PagedSelect/PagedSelect";
 import { DisplayOrientationIcon } from "./ui/icons/DisplayOrientationIcon";
 
 type OrientationOption = {
@@ -30,10 +33,10 @@ export function OrientationSelector({
 
   const options: OrientationOption[] = useMemo(
     () => [
-      { key: "0", degrees: 0, label: "Landscape orientation" },
-      { key: "90", degrees: 90, label: "Portrait orientation" },
-      { key: "180", degrees: 180, label: "Landscape orientation (flipped)" },
-      { key: "270", degrees: 270, label: "Portrait orientation (flipped)" },
+      { key: "0", degrees: 0, label: "Landscape" },
+      { key: "90", degrees: 90, label: "Portrait" },
+      { key: "180", degrees: 180, label: "Landscape (flipped)" },
+      { key: "270", degrees: 270, label: "Portrait (flipped)" },
     ],
     []
   );
@@ -68,28 +71,48 @@ export function OrientationSelector({
     return "16:9";
   }, [aspectRatioKey]);
 
+  const buildItemsForPage = (page: number): ReadonlyArray<PagedSelectItem> => {
+    if (page !== 1) return [];
+    return options.map((opt) => ({
+      key: opt.key,
+      label: opt.label,
+      icon: (
+        <DisplayOrientationIcon
+          aspectRatioKey={aspectKey}
+          orientation={opt.degrees}
+        />
+      ),
+    }));
+  };
+
+  const triggerIcon = (
+    <DisplayOrientationIcon
+      aspectRatioKey={aspectKey}
+      orientation={selected?.degrees ?? orientation ?? 0}
+    />
+  );
+
+  const handleSelect = async (key: string, label: string) => {
+    const opt = options.find((o) => o.key === key);
+    if (!opt) return;
+    setSelected(opt);
+    await apply(opt);
+  };
+
   return (
     <>
-      <TextToggle
-        hideIconBackground
-        toggled={false}
-        text={selected?.label ?? "Orientation"}
-        disabled={disabled}
-        icon={
-          <DisplayOrientationIcon
-            aspectRatioKey={aspectKey}
-            orientation={orientation ?? 0}
-          />
-        }
-        onClick={() => {
-          // Future: open a dialog or cycle through options.
-          // For now, simply cycle to the next option on click.
-          const idx = options.findIndex((o) => o.key === selected?.key);
-          const next = options[(idx + 1) % options.length];
-          setSelected(next);
-          apply(next);
-        }}
-      />
+      <div className="field">
+        <div className="label">Orientation</div>
+        <PagedSelect
+          disabled={disabled}
+          triggerLabel={selected?.label ?? "Orientation"}
+          triggerIcon={triggerIcon}
+          pageCount={1}
+          getItemsForPage={buildItemsForPage}
+          selectedLabel={selected?.label ?? undefined}
+          onSelect={handleSelect}
+        />
+      </div>
     </>
   );
 }

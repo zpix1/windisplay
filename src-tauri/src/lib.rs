@@ -1,3 +1,5 @@
+mod cli;
+mod display_monitor;
 mod displays;
 mod fakeDisplays;
 mod positioning;
@@ -16,6 +18,19 @@ fn autostart_label(enabled: bool) -> String {
 }
 
 pub fn run() {
+    match cli::run_cli() {
+        Ok(true) => {
+            return;
+        }
+        Ok(false) => {
+            // No CLI command or explicit --ui, continue with GUI
+        }
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    }
+
     use crate::positioning;
     use tauri::{
         menu::{Menu, MenuItem},
@@ -169,10 +184,13 @@ pub fn run() {
 
             tray_builder.build(app)?;
 
+            // Start monitoring for display changes
+            if let Err(e) = display_monitor::start_display_monitor(app.handle().clone()) {
+                log::warn!("Failed to start display monitor: {}", e);
+            }
+
             // Keep main window hidden until tray click (config also sets visible: false)
             if let Some(window) = app.get_webview_window("main") {
-                // Apply vibrancy/blur effects based on platform
-
                 // Hide on focus out
                 let window_for_event = window.clone();
                 window.on_window_event(move |event| {

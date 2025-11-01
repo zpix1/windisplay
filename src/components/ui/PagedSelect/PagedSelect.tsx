@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "../icons/ArrowIcons";
 import "./PagedSelect.css";
 
@@ -27,23 +27,57 @@ export function PagedSelect({
   selectedLabel,
   onSelect,
 }: PagedSelectProps) {
-  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
+  const [isClosing, setIsClosing] = useState<boolean>(false);
   const [page, setPage] = useState<number>(1);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearCloseTimeout = useCallback(() => {
+    if (closeTimeoutRef.current !== null) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    clearCloseTimeout();
+    setIsClosing(true);
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsMounted(false);
+      setIsClosing(false);
+      closeTimeoutRef.current = null;
+    }, 200);
+  }, [clearCloseTimeout]);
+
+  const openMenu = useCallback(() => {
+    clearCloseTimeout();
+    setIsMounted(true);
+    setIsClosing(false);
+    setPage(1);
+  }, [clearCloseTimeout]);
+
+  const isOpen = isMounted && !isClosing;
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setIsOpen(false);
+    return () => {
+      clearCloseTimeout();
     };
-    if (isOpen) {
-      document.addEventListener("keydown", handleEscape);
-      document.body.style.overflow = "hidden";
+  }, [clearCloseTimeout]);
+
+  useEffect(() => {
+    if (!isMounted) {
+      return;
     }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeMenu();
+    };
+    document.addEventListener("keydown", handleEscape);
+    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = "";
     };
-  }, [isOpen]);
+  }, [isMounted, closeMenu]);
 
   return (
     <>
@@ -53,8 +87,11 @@ export function PagedSelect({
           className="button select-trigger"
           disabled={disabled}
           onClick={() => {
-            setIsOpen((v) => !v);
-            setPage(1);
+            if (isOpen) {
+              closeMenu();
+            } else {
+              openMenu();
+            }
           }}
           aria-haspopup="menu"
           aria-expanded={isOpen}
@@ -66,37 +103,48 @@ export function PagedSelect({
           <span className="caret">▾</span>
         </button>
       </div>
-      {isOpen && (
+      {isMounted && (
         <>
-          <div className="select-overlay" onClick={() => setIsOpen(false)} />
-          <div role="menu" className="select-menu" ref={menuRef}>
+          <div
+            className={`select-overlay${isClosing ? " closing" : ""}`}
+            onClick={closeMenu}
+          />
+          <div
+            role="menu"
+            className={`select-menu${isClosing ? " closing" : ""}`}
+          >
             <div className="select-menu-content">
-              <div className="pager">
-                <button
-                  type="button"
-                  className="button pager-btn"
-                  onClick={() => setPage((p) => (p > 1 ? p - 1 : 1))}
-                  disabled={page === 1}
-                  aria-label="Previous page"
-                >
-                  <ChevronLeftIcon size={16} />
-                </button>
-                <button
-                  type="button"
-                  className="button pager-btn"
-                  onClick={() =>
-                    setPage((p) => (p < pageCount ? p + 1 : pageCount))
-                  }
-                  disabled={page === pageCount}
-                  aria-label="Next page"
-                >
-                  <ChevronRightIcon size={16} />
-                </button>
-              </div>
-              <div className="menu-separator" />
+              {pageCount > 1 && (
+                <>
+                  <div className="pager">
+                    <button
+                      type="button"
+                      className="button pager-btn"
+                      onClick={() => setPage((p) => (p > 1 ? p - 1 : 1))}
+                      disabled={page === 1}
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeftIcon size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      className="button pager-btn"
+                      onClick={() =>
+                        setPage((p) => (p < pageCount ? p + 1 : pageCount))
+                      }
+                      disabled={page === pageCount}
+                      aria-label="Next page"
+                    >
+                      <ChevronRightIcon size={16} />
+                    </button>
+                  </div>
+                  <div className="menu-separator" />
+                </>
+              )}
               <div className="select-items-container">
                 {getItemsForPage(page).map((it) => (
                   <button
+                    title={`CLI Key: ${it.key}`}
                     key={it.key}
                     type="button"
                     className={`select-item ${
@@ -107,7 +155,7 @@ export function PagedSelect({
                     }`}
                     onClick={() => {
                       onSelect(it.key, it.label);
-                      setIsOpen(false);
+                      closeMenu();
                     }}
                     role="menuitem"
                   >
