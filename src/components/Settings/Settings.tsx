@@ -1,8 +1,11 @@
 import { Dialog } from "../ui/Dialog/Dialog";
+import { useRef, useEffect, useMemo } from "react";
 import {
   useSettings,
   type KeyboardBrightnessShortcut,
+  type Settings,
 } from "../../hooks/useSettings";
+import { relaunch } from "@tauri-apps/plugin-process";
 import "./Settings.css";
 
 type SettingsProps = {
@@ -10,8 +13,25 @@ type SettingsProps = {
   onClose: () => void;
 };
 
+const RESTART_REQUIRED_KEYS: Array<keyof Settings> = [
+  "keyboardBrightnessShortcut",
+];
+
 export function Settings({ isOpen, onClose }: SettingsProps) {
   const { settings, updateSettings, loading } = useSettings();
+  const initialSettingsRef = useRef<Settings | null>(null);
+  useEffect(() => {
+    if (!loading && initialSettingsRef.current === null) {
+      initialSettingsRef.current = settings;
+    }
+  }, [loading, settings]);
+
+  const restartRequired = useMemo(() => {
+    if (loading || !initialSettingsRef.current) return false;
+    return RESTART_REQUIRED_KEYS.some(
+      (key) => initialSettingsRef.current![key] !== settings[key]
+    );
+  }, [loading, settings]);
 
   const handleCheckboxChange = (checked: boolean) => {
     updateSettings({ showUIOnMonitorChange: checked });
@@ -30,7 +50,13 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
           <div className="settings-content">
             <div className="settings-section">
               <div className="settings-section-title">
-                Brightness Keys Affect:
+                Brightness Keys Affect:{" "}
+                <span
+                  className="settings-section-title-note"
+                  title="We use non-standard brightness keys (0xC3 and 0xC4) and F14/F15 for brightness adjustment. You can bind these keys to the brightness up/down keys in your keyboard settings. Please note that brighness Windows API is very slow, so it might feel laggy."
+                >
+                  (?)
+                </span>
               </div>
               <div className="settings-radio-group">
                 <label className="settings-radio-label">
@@ -47,7 +73,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                   <span className="settings-radio-text">All screens</span>
                 </label>
 
-                <label className="settings-radio-label">
+                {/* <label className="settings-radio-label">
                   <input
                     type="radio"
                     name="keyboardBrightnessShortcut"
@@ -62,7 +88,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                   <span className="settings-radio-text">
                     Screen with mouse pointer
                   </span>
-                </label>
+                </label> */}
 
                 <label className="settings-radio-label">
                   <input
@@ -74,7 +100,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                     className="settings-radio"
                   />
                   <span className="settings-radio-text">
-                    Use system behavior
+                    Use system behavior (no action)
                   </span>
                 </label>
               </div>
@@ -93,6 +119,18 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                 </span>
               </label>
             </div>
+            {restartRequired && (
+              <div className="settings-section">
+                <button
+                  className="button"
+                  onClick={() => {
+                    void relaunch();
+                  }}
+                >
+                  Restart required
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

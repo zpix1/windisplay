@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.11] - 2025-11-01
+
+- Added settings page
+- Added option to keyboard brightness keys for brightness control
+- Added option to automatically show UI when a monitor is connected or disconnected
+
 ## [0.3.10] - 2025-11-01
 
 - Orientation control now uses selector, no cycling through options

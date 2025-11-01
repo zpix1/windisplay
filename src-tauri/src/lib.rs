@@ -5,6 +5,7 @@ mod fakeDisplays;
 #[cfg(target_os = "windows")]
 mod hotkeys;
 mod positioning;
+mod settings;
 #[cfg(target_os = "windows")]
 mod winDisplays;
 pub mod winHdr;
@@ -37,7 +38,7 @@ pub fn run() {
     use tauri::{
         menu::{Menu, MenuItem},
         tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-        Manager, WebviewUrl, WebviewWindowBuilder, WindowEvent,
+        Manager, WebviewUrl, WebviewWindowBuilder,
     };
     use tauri_plugin_notification::NotificationExt;
 
@@ -50,6 +51,7 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             displays::get_all_monitors,
             displays::set_monitor_resolution,
@@ -64,6 +66,14 @@ pub fn run() {
             displays::get_monitor_ddc_caps,
         ])
         .setup(|app| {
+            // helper to reveal main window
+            fn reveal_main_window(app_handle: &tauri::AppHandle) {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
             // Enable autostart by default on first run (persist marker so user choice isn't overridden)
             #[cfg(desktop)]
             {
@@ -117,11 +127,7 @@ pub fn run() {
             let tray_builder =
                 tray_builder.on_menu_event(move |app_handle, event| match event.id().as_ref() {
                     "show" => {
-                        if let Some(window) = app_handle.get_webview_window("main") {
-                            let _ = window.unminimize();
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                        reveal_main_window(&app_handle);
                     }
                     "autostart_toggle" => {
                         use tauri_plugin_autostart::ManagerExt;
@@ -178,9 +184,7 @@ pub fn run() {
                         );
                         let _ = window.set_position(pos);
 
-                        let _ = window.unminimize();
-                        let _ = window.show();
-                        let _ = window.set_focus();
+                        reveal_main_window(&app);
                     }
                 }
             });
@@ -192,10 +196,18 @@ pub fn run() {
                 log::warn!("Failed to start display monitor: {}", e);
             }
 
-            // Start global hotkey service (Windows only)
+            // UI reveal on monitor change handled in display_monitor.rs based on settings
+
+            // Start global hotkey service (Windows only) if enabled by settings
             #[cfg(target_os = "windows")]
             {
-                crate::hotkeys::start_hotkey_service(app.handle().clone());
+                if crate::settings::should_register_brightness_hotkeys_app(&app) {
+                    crate::hotkeys::start_hotkey_service(app.handle().clone());
+                } else {
+                    log::info!(
+                        "Skipping brightness hotkeys startup: keyboardBrightnessShortcut is 'system'"
+                    );
+                }
             }
 
             // Keep main window hidden until tray click (config also sets visible: false)

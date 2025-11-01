@@ -41,6 +41,7 @@ tauri-plugin-autostart = "2"
 log = "0.4"
 tauri-plugin-store = "2"
 global-hotkey = "0.7"
+tauri-plugin-process = "2"
 
 [features]
 default = []
