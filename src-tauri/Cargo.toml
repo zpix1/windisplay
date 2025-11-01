@@ -38,6 +38,7 @@ tauri-plugin-log = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-autostart = "2"
 log = "0.4"
+tauri-plugin-store = "2"
 
 [features]
 default = []

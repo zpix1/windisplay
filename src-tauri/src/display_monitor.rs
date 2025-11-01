@@ -107,4 +107,3 @@ pub fn start_display_monitor(_app_handle: tauri::AppHandle) -> Result<(), String
     // No-op on non-Windows platforms
     Ok(())
 }
-

@@ -40,6 +40,7 @@ pub fn run() {
     use tauri_plugin_notification::NotificationExt;
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
