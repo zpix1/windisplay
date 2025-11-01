@@ -80,6 +80,10 @@ impl Displays for WinDisplays {
     fn get_monitor_ddc_caps(&self, device_name: String) -> Result<String, String> {
         get_monitor_ddc_caps_windows(device_name)
     }
+
+    fn get_all_monitors_short(&self) -> Result<Vec<String>, String> {
+        get_all_monitor_names_windows()
+    }
 }
 
 // Attempt to fetch a preferred/native mode using registry-stored settings for the device.
@@ -1474,6 +1478,37 @@ fn get_scales_for_device(device_name: &str) -> Result<Vec<ScaleInfo>, String> {
         });
     }
     Ok(out)
+}
+
+fn get_all_monitor_names_windows() -> Result<Vec<String>, String> {
+    use std::mem::{size_of, zeroed};
+    use windows::Win32::Foundation::BOOL;
+    use windows::Win32::Graphics::Gdi::{
+        EnumDisplayDevicesW, DISPLAY_DEVICEW, DISPLAY_DEVICE_ATTACHED_TO_DESKTOP,
+        DISPLAY_DEVICE_MIRRORING_DRIVER,
+    };
+
+    let mut names: Vec<String> = Vec::new();
+    let mut device_index: u32 = 0;
+    loop {
+        let mut dd: DISPLAY_DEVICEW = unsafe { zeroed() };
+        dd.cb = size_of::<DISPLAY_DEVICEW>() as u32;
+        let ok: BOOL = unsafe { EnumDisplayDevicesW(None, device_index, &mut dd, 0) };
+        if !ok.as_bool() {
+            break;
+        }
+        let state = dd.StateFlags;
+        let is_attached = (state & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) != 0;
+        let is_mirror = (state & DISPLAY_DEVICE_MIRRORING_DRIVER) != 0;
+        if is_attached && !is_mirror {
+            let device_name = widestr_to_string(&dd.DeviceName);
+            if !device_name.is_empty() {
+                names.push(device_name);
+            }
+        }
+        device_index += 1;
+    }
+    Ok(names)
 }
 
 fn set_monitor_scale_windows(device_name: &str, scale_percent: u32) -> Result<(), String> {

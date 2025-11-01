@@ -2,6 +2,8 @@ mod cli;
 mod display_monitor;
 mod displays;
 mod fakeDisplays;
+#[cfg(target_os = "windows")]
+mod hotkeys;
 mod positioning;
 #[cfg(target_os = "windows")]
 mod winDisplays;
@@ -188,6 +190,12 @@ pub fn run() {
             // Start monitoring for display changes
             if let Err(e) = display_monitor::start_display_monitor(app.handle().clone()) {
                 log::warn!("Failed to start display monitor: {}", e);
+            }
+
+            // Start global hotkey service (Windows only)
+            #[cfg(target_os = "windows")]
+            {
+                crate::hotkeys::start_hotkey_service(app.handle().clone());
             }
 
             // Keep main window hidden until tray click (config also sets visible: false)

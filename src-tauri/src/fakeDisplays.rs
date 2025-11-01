@@ -64,6 +64,10 @@ impl Displays for FakeDisplays {
         Ok(displays)
     }
 
+    fn get_all_monitors_short(&self) -> Result<Vec<String>, String> {
+        Ok((0..4).map(|i| format!("\\\\.\\DISPLAY{}", i + 1)).collect())
+    }
+
     fn set_monitor_resolution(
         &self,
         _device_name: String,

@@ -53,6 +53,7 @@ pub struct BrightnessInfo {
 
 pub trait Displays {
     fn get_all_monitors(&self) -> Result<Vec<DisplayInfo>, String>;
+    fn get_all_monitors_short(&self) -> Result<Vec<String>, String>;
     fn set_monitor_resolution(
         &self,
         device_name: String,

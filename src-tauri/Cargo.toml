@@ -29,6 +29,7 @@ windows = { version = "0.56", features = [
   "Win32_Foundation",
   "Win32_Devices_Display",
   "Win32_UI_HiDpi",
+  "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",
   "Win32_System_LibraryLoader",
   "Win32_System_Threading",
@@ -39,6 +40,7 @@ tauri-plugin-notification = "2"
 tauri-plugin-autostart = "2"
 log = "0.4"
 tauri-plugin-store = "2"
+global-hotkey = "0.7"
 
 [features]
 default = []
