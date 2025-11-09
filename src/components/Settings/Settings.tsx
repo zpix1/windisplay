@@ -7,6 +7,7 @@ import {
 } from "../../hooks/useSettings";
 import { relaunch } from "@tauri-apps/plugin-process";
 import "./Settings.css";
+import { CheckUpdatesButton } from "./CheckUpdatesButton";
 
 type SettingsProps = {
   isOpen: boolean;
@@ -118,6 +119,9 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                   disconnected
                 </span>
               </label>
+            </div>
+            <div className="settings-section">
+              <CheckUpdatesButton />
             </div>
             {restartRequired && (
               <div className="settings-section">

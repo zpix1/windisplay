@@ -52,19 +52,12 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "WinDisplay v__VERSION__"
           releaseBody: |
-            Windows Display Control Application
+            WinDisplay v__VERSION__
 
             **Installation:**
-            1. Download the `.msi` installer below
-            2. Run the installer as administrator
-            3. The app will be available in your Start Menu
-
-            **What's new:**
-            - See commit history for detailed changes
-
-            **System Requirements:**
-            - Windows 10 or later
-            - x64 architecture
+            1. Download the `.exe` installer below
+            2. Run the installer
+            3. The app will be available in your System Tray
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
