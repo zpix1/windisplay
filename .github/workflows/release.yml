@@ -41,6 +41,28 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Extract release notes from CHANGELOG.md
+        id: extract_release_notes
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $changelogPath = "CHANGELOG.md"
+          if (-not (Test-Path $changelogPath)) {
+            Write-Error "CHANGELOG.md not found"
+            exit 1
+          }
+          $changelog = Get-Content -Path $changelogPath -Raw
+          $escapedVersion = [Regex]::Escape($version)
+          $pattern = "^\#\# \[$escapedVersion\][\s\S]*?(?=^\#\# \[|\Z)"
+          $match = [Regex]::Match($changelog, $pattern, [Text.RegularExpressions.RegexOptions]::Multiline)
+          if (-not $match.Success) {
+            Write-Error "Release notes for version $version not found in CHANGELOG.md"
+            exit 1
+          }
+          $notes = $match.Value.Trim()
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "release_body<<EOF"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value $notes
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "EOF"
+
       - name: Build and release Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -58,6 +80,10 @@ jobs:
             1. Download the `.exe` installer below
             2. Run the installer
             3. The app will be available in your System Tray
+
+            **Changes:**
+
+            ${{ steps.extract_release_notes.outputs.release_body }}
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

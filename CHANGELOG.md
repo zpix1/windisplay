@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.14] - 2025-11-09
+
+- Added auto update feature, check settings page
+- Fixed bug where auto-start started app in console mode
+
 ## [0.3.13] - 2025-11-01
 
 - Fixed windoow hide bug
