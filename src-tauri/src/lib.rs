@@ -77,7 +77,8 @@ pub fn run() {
                 }
             }
             // Enable autostart by default on first run (persist marker so user choice isn't overridden)
-            #[cfg(desktop)]
+            // Only do this in release builds to avoid registering a dev (console) binary on Windows.
+            #[cfg(all(desktop, not(debug_assertions)))]
             {
                 use std::fs;
                 use tauri_plugin_autostart::ManagerExt;
@@ -96,6 +97,17 @@ pub fn run() {
                         }
                         let _ = fs::write(&marker, b"1");
                     }
+                }
+            }
+            // On Windows release builds: if autostart is already enabled (possibly from a prior dev run),
+            // re-register it to ensure it points to the current GUI (windows subsystem) executable.
+            #[cfg(all(target_os = "windows", not(debug_assertions)))]
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let manager = app.autolaunch();
+                if manager.is_enabled().unwrap_or(false) {
+                    let _ = manager.disable();
+                    let _ = manager.enable();
                 }
             }
             // Show a notification on startup to inform the user the app is running in the tray

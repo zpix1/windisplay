@@ -29,12 +29,7 @@ pub fn start_hotkey_service(app_handle: AppHandle) {
 
             // Register brightness keys and F14/F15 and map ids to deltas
             let mut id_to_delta: HashMap<u32, i32> = HashMap::new();
-            for (code, delta) in [
-                (Code::BrightnessUp, 5),
-                (Code::BrightnessDown, -5),
-                (Code::F15, 5),
-                (Code::F14, -5),
-            ] {
+            for (code, delta) in [(Code::F15, 5), (Code::F14, -5)] {
                 let hk = HotKey::new(None::<Modifiers>, code);
                 if let Err(e) = manager.register(hk) {
                     log::warn!("Failed to register hotkey for {:?}: {e}", code);
