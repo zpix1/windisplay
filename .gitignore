@@ -24,3 +24,5 @@ dist-ssr
 *.sw?
 
 target/rust-analyzer
+
+2

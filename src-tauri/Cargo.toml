@@ -48,3 +48,6 @@ default = []
 # Use a fake displays provider instead of the platform implementation
 fake-displays = []
 
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+
