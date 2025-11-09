@@ -7,8 +7,7 @@ on:
 
 jobs:
   publish-tauri:
-    permissions:
-      contents: write
+    permissions: write-all
     strategy:
       fail-fast: false
       matrix:
