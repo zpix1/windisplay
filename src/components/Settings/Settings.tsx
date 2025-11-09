@@ -53,7 +53,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                 Brightness Keys Affect:{" "}
                 <span
                   className="settings-section-title-note"
-                  title="We use non-standard brightness keys (0xC3 and 0xC4) and F14/F15 for brightness adjustment. You can bind these keys to the brightness up/down keys in your keyboard settings. Please note that brighness Windows API is very slow, so it might feel laggy."
+                  title="We use F14/F15 for brightness adjustment. You can bind these keys to the brightness up/down keys in your keyboard settings. Please note that brighness Windows API is very slow, so it might feel laggy."
                 >
                   (?)
                 </span>
