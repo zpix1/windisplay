@@ -1,6 +1,6 @@
 [package]
 name = "WinDisplay"
-version = "0.3.13"
+version = "0.3.14"
 description = "Like BetterDisplay, but for Windows. Change resolution and refresh rate of your monitors from your system tray."
 authors = ["zpix1"]
 edition = "2021"
