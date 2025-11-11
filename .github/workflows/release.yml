@@ -14,6 +14,8 @@ jobs:
         include:
           - platform: "windows-latest"
             args: "--target x86_64-pc-windows-msvc"
+          - platform: "windows-latest"
+            args: "--target aarch64-pc-windows-msvc"
 
     runs-on: ${{ matrix.platform }}
 
@@ -30,7 +32,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: x86_64-pc-windows-msvc
+          targets: x86_64-pc-windows-msvc, aarch64-pc-windows-msvc
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -74,6 +76,10 @@ jobs:
           releaseName: "WinDisplay v__VERSION__"
           releaseBody: |
             WinDisplay v__VERSION__
+
+            **Choose build for your platform:**
+            - `x86_64`: For Intel/AMD processors (most common)
+            - `aarch64`: For ARM64 processors (e.g., Snapdragon X Elite)
 
             **Installation:**
             1. Download the `.exe` installer below
