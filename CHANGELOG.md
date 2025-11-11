@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.15] - 2025-11-11
+
+- [#10](https://github.com/zpix1/windisplay/issues/10) ARM64 Build
+
 ## [0.3.14] - 2025-11-09
 
 - Added auto update feature, check settings page
