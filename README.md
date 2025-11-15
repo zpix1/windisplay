@@ -1,6 +1,6 @@
 ## WinDisplay
 
-![images/image.png](images/v0.1.2.png)
+![images/image.png](images/ad.png)
 
 Like BetterDisplay, but for Windows.
 
