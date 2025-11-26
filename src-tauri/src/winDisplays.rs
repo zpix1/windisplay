@@ -1091,7 +1091,7 @@ fn set_monitor_input_source_windows(device_name: String, input: String) -> Resul
             ));
         }
         Ok(())
-    })P
+    })
 }
 
 fn get_monitor_input_source_windows(device_name: String) -> Result<String, String> {
