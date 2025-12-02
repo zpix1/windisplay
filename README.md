@@ -1,7 +1,13 @@
 ## WinDisplay
 
-[![Release](https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/release/zpix1/windisplay)](https://github.com/zpix1/windisplay/releases/latest)
-[![Stars](https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/stars/zpix1/windisplay)](https://github.com/zpix1/windisplay/stargazers)
+<p align="center">
+  <a href="https://github.com/zpix1/windisplay/releases/latest">
+    <img src="https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/release/zpix1/windisplay" alt="Release">
+  </a>
+  <a href="https://github.com/zpix1/windisplay/stargazers">
+    <img src="https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/stars/zpix1/windisplay" alt="Stars">
+  </a>
+</p>
 
 ![images/image.png](images/ad.png)
 

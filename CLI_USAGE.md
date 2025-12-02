@@ -84,4 +84,3 @@ WinDisplay.exe set-hdr --monitor-idx 0 --enable true
 # Disable HDR
 WinDisplay.exe set-hdr --monitor-idx 0 --enable false
 ```
-
