@@ -1,5 +1,8 @@
 ## WinDisplay
 
+[![Release](https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/release/zpix1/windisplay)](https://github.com/zpix1/windisplay/releases/latest)
+[![Stars](https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/stars/zpix1/windisplay)](https://github.com/zpix1/windisplay/stargazers)
+
 ![images/image.png](images/ad.png)
 
 Like BetterDisplay, but for Windows.
