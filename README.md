@@ -2,6 +2,7 @@
 
 [![Release](https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/release/zpix1/windisplay)](https://github.com/zpix1/windisplay/releases/latest)
 [![Stars](https://img.shields.io/endpoint?url=https://api.pinstudios.net/api/badges/stars/zpix1/windisplay)](https://github.com/zpix1/windisplay/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/zpix1/windisplay/total)](https://github.com/zpix1/windisplay/releases)
 
 ![images/image.png](images/ad.png)
 
