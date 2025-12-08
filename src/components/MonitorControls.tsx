@@ -6,6 +6,7 @@ import { OrientationSelector } from "./OrientationTextToggle";
 import { ScaleSlider } from "./ScaleSlider.tsx";
 import { HdrToggle } from "./HdrToggle.tsx";
 import { InputSourceSelector } from "./InputSourceSelector";
+import { PowerToggle } from "./PowerToggle";
 
 type MonitorControlsProps = {
   monitor: DisplayInfo;
@@ -72,6 +73,8 @@ export default function MonitorControls({
       {monitor.hdr_status !== "unsupported" && (
         <HdrToggle monitor={monitor} disabled={disabled} onError={onError} />
       )}
+
+      <PowerToggle monitor={monitor} disabled={disabled} onError={onError} />
     </>
   );
 }

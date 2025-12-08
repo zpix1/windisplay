@@ -17,6 +17,7 @@ export type DisplayInfo = {
   connection: string;
   built_in: boolean;
   active: boolean;
+  enabled: boolean;
   scale: number;
   scales: ScaleInfo[];
   hdr_status: "on" | "off" | "unsupported";

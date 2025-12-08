@@ -54,6 +54,7 @@ impl Displays for FakeDisplays {
                 connection: String::new(),
                 built_in: false,
                 active: false,
+                enabled: true,
                 scale: if i == 0 { 1.25 } else { 1.0 },
                 scales: vec![],
                 hdr_status: "unsupported".to_string(),
@@ -121,5 +122,9 @@ impl Displays for FakeDisplays {
 
     fn get_monitor_ddc_caps(&self, _device_name: String) -> Result<String, String> {
         Ok("(fake) DDC/CI supported: vcp(10 60 E0)".to_string())
+    }
+
+    fn set_monitor_power(&self, _device_name: String, _power_on: bool) -> Result<(), String> {
+        Ok(())
     }
 }

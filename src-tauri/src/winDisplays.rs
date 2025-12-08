@@ -84,6 +84,10 @@ impl Displays for WinDisplays {
     fn get_all_monitors_short(&self) -> Result<Vec<String>, String> {
         get_all_monitor_names_windows()
     }
+
+    fn set_monitor_power(&self, device_name: String, power_on: bool) -> Result<(), String> {
+        set_monitor_power_windows(&device_name, power_on)
+    }
 }
 
 // Attempt to fetch a preferred/native mode using registry-stored settings for the device.
@@ -624,6 +628,11 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             Err(_) => None,
         };
 
+        // Query power status via DDC/CI VCP 0xD6
+        // - Some(true/false) = DDC/CI worked, use the actual value
+        // - None = No DDC/CI support (e.g., internal display), assume enabled
+        let enabled: bool = get_monitor_power_status_windows(&device_name).unwrap_or(true);
+
         displays.push(DisplayInfo {
             device_name,
             friendly_name,
@@ -642,6 +651,7 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
             connection,
             built_in,
             active,
+            enabled,
             scale: scale_factor,
             scales,
             hdr_status,
@@ -1179,6 +1189,120 @@ fn has_vcp_60_windows(device_name: String) -> Result<bool, String> {
             return Ok(false);
         }
         Ok(true)
+    })
+}
+
+/// Get monitor power status via DDC/CI VCP code 0xD6 (DPMS / Power Mode)
+/// Returns:
+/// - Some(true) if monitor is powered on (VCP 0xD6 = 0x01)
+/// - Some(false) if monitor is powered off/standby/suspend (VCP 0xD6 != 0x01)
+/// - Some(false) if DDC/CI communication fails (likely monitor is off)
+/// - None only if we can't get a physical monitor handle at all (no DDC/CI support)
+fn get_monitor_power_status_windows(device_name: &str) -> Option<bool> {
+    use windows::Win32::Devices::Display::{
+        DestroyPhysicalMonitors, GetNumberOfPhysicalMonitorsFromHMONITOR,
+        GetPhysicalMonitorsFromHMONITOR, PHYSICAL_MONITOR,
+    };
+    use windows::Win32::Devices::Display::{GetVCPFeatureAndVCPFeatureReply, MC_VCP_CODE_TYPE};
+
+    // First check if we can get a physical monitor handle at all
+    let hmon = match find_hmonitor_by_device_name(device_name) {
+        Some(h) => h,
+        None => {
+            log::debug!(
+                "No HMONITOR found for '{}' - assuming no DDC/CI support",
+                device_name
+            );
+            return None; // No DDC/CI support, caller should default to true
+        }
+    };
+
+    let mut count: u32 = 0;
+    if unsafe { GetNumberOfPhysicalMonitorsFromHMONITOR(hmon, &mut count) }.is_err() || count == 0 {
+        log::debug!(
+            "No physical monitors for '{}' - assuming no DDC/CI support",
+            device_name
+        );
+        return None; // No DDC/CI support, caller should default to true
+    }
+
+    // We have DDC/CI support, now try to read power status
+    let mut vec: Vec<PHYSICAL_MONITOR> = vec![unsafe { std::mem::zeroed() }; count as usize];
+    if unsafe { GetPhysicalMonitorsFromHMONITOR(hmon, &mut vec) }.is_err() {
+        log::debug!(
+            "Failed to get physical monitors for '{}' - assuming monitor is off",
+            device_name
+        );
+        return Some(false); // DDC/CI should work but failed, likely monitor is off
+    }
+
+    let pm = vec[0];
+    let mut feature_type: MC_VCP_CODE_TYPE = MC_VCP_CODE_TYPE(0);
+    let mut current_value: u32 = 0;
+    let mut max_value: u32 = 0;
+    let ok = unsafe {
+        GetVCPFeatureAndVCPFeatureReply(
+            pm.hPhysicalMonitor,
+            0xD6, // DPMS / Power Mode VCP code
+            Some(&mut feature_type),
+            &mut current_value,
+            Some(&mut max_value),
+        )
+    };
+
+    let _ = unsafe { DestroyPhysicalMonitors(&vec) };
+
+    if ok == 0 {
+        // DDC/CI communication failed - monitor is likely powered off
+        log::debug!(
+            "VCP 0xD6 read failed for '{}' - assuming monitor is off",
+            device_name
+        );
+        return Some(false);
+    }
+
+    // VCP 0xD6 Power Mode values (MCCS standard):
+    // 0x01 = On (DPM On)
+    // 0x02 = Standby
+    // 0x03 = Suspend
+    // 0x04 = Off (soft off)
+    // 0x05 = Power Off (hard off)
+    let power_value = current_value & 0xFF;
+    log::debug!(
+        "DDC/CI power status for '{}': value=0x{:02X}",
+        device_name,
+        power_value
+    );
+    Some(power_value == 0x01)
+}
+
+/// Set monitor power state via DDC/CI VCP code 0xD6 (DPMS / Power Mode)
+/// power_on: true = On (0x01), false = Off (0x05 hard power off)
+fn set_monitor_power_windows(device_name: &str, power_on: bool) -> Result<(), String> {
+    use windows::Win32::Devices::Display::SetVCPFeature;
+    // VCP 0xD6 Power Mode values (MCCS standard):
+    // 0x01 = On (DPM On)
+    // 0x02 = Standby
+    // 0x03 = Suspend
+    // 0x04 = Off (soft off)
+    // 0x05 = Power Off (hard off)
+    let power_value: u32 = if power_on { 0x01 } else { 0x05 };
+
+    with_first_physical_monitor(device_name, |pm| {
+        let ok = unsafe { SetVCPFeature(pm.hPhysicalMonitor, 0xD6, power_value) };
+        if ok == 0 {
+            return Err(
+                "SetVCPFeature(0xD6) failed - monitor may not support DDC/CI power control"
+                    .to_string(),
+            );
+        }
+        log::info!(
+            "Set monitor '{}' power to {} (VCP 0xD6 = 0x{:02X})",
+            device_name,
+            if power_on { "ON" } else { "OFF" },
+            power_value
+        );
+        Ok(())
     })
 }
 

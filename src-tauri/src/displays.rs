@@ -34,6 +34,8 @@ pub struct DisplayInfo {
     pub connection: String,
     pub built_in: bool,
     pub active: bool,
+    // Whether the monitor is powered on
+    pub enabled: bool,
 
     pub scale: f32,
     pub scales: Vec<ScaleInfo>,
@@ -74,6 +76,7 @@ pub trait Displays {
     fn set_monitor_input_source(&self, device_name: String, input: String) -> Result<(), String>;
     fn get_monitor_input_source(&self, device_name: String) -> Result<String, String>;
     fn get_monitor_ddc_caps(&self, device_name: String) -> Result<String, String>;
+    fn set_monitor_power(&self, device_name: String, power_on: bool) -> Result<(), String>;
 }
 
 pub fn active_provider() -> Box<dyn Displays> {
@@ -153,4 +156,9 @@ pub fn get_monitor_input_source(device_name: String) -> Result<String, String> {
 #[tauri::command]
 pub fn get_monitor_ddc_caps(device_name: String) -> Result<String, String> {
     active_provider().get_monitor_ddc_caps(device_name)
+}
+
+#[tauri::command]
+pub fn set_monitor_power(device_name: String, power_on: bool) -> Result<(), String> {
+    active_provider().set_monitor_power(device_name, power_on)
 }

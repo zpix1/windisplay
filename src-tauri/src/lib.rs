@@ -67,6 +67,7 @@ pub fn run() {
             displays::set_monitor_input_source,
             displays::get_monitor_input_source,
             displays::get_monitor_ddc_caps,
+            displays::set_monitor_power,
         ])
         .setup(|app| {
             // helper to reveal main window
