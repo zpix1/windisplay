@@ -9,6 +9,13 @@ export type PagedSelectItem = {
   icon?: React.ReactNode;
 };
 
+export type PagedSelectAction = {
+  key: string;
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+};
+
 type PagedSelectProps = {
   disabled?: boolean;
   triggerLabel: string;
@@ -17,6 +24,7 @@ type PagedSelectProps = {
   getItemsForPage: (page: number) => ReadonlyArray<PagedSelectItem>;
   selectedLabel?: string;
   onSelect: (itemKey: string, itemLabel: string) => void;
+  actions?: ReadonlyArray<PagedSelectAction>;
 };
 
 export function PagedSelect({
@@ -27,6 +35,7 @@ export function PagedSelect({
   getItemsForPage,
   selectedLabel,
   onSelect,
+  actions,
 }: PagedSelectProps) {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [page, setPage] = useState<number>(1);
@@ -116,6 +125,27 @@ export function PagedSelect({
               </button>
             ))}
           </div>
+          {actions && actions.length > 0 && (
+            <>
+              <div className="menu-separator" />
+              <div className="select-actions">
+                {actions.map((action) => (
+                  <button
+                    key={action.key}
+                    type="button"
+                    className="button select-action-btn"
+                    title={action.label}
+                    onClick={() => {
+                      action.onClick();
+                      closeMenu();
+                    }}
+                  >
+                    {action.icon}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </Dialog>
     </>

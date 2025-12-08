@@ -4,8 +4,14 @@ import { useMonitorsMutation } from "../hooks/useMonitorsMutation";
 import {
   PagedSelect,
   type PagedSelectItem,
+  type PagedSelectAction,
 } from "./ui/PagedSelect/PagedSelect";
 import { DisplayOrientationIcon } from "./ui/icons/DisplayOrientationIcon";
+import {
+  RotateLeftIcon,
+  RotateRightIcon,
+  MirrorIcon,
+} from "./ui/icons/RotateIcons";
 
 type OrientationOption = {
   key: string;
@@ -99,20 +105,54 @@ export function OrientationSelector({
     await apply(opt);
   };
 
+  const applyDelta = (delta: number) => {
+    const currentDeg = selected?.degrees ?? orientation ?? 0;
+    const newDeg = (currentDeg + delta) % 360;
+    const opt = options.find((o) => o.degrees === newDeg);
+    if (opt) {
+      setSelected(opt);
+      apply(opt);
+    }
+  };
+
+  const isPortrait =
+    (selected?.degrees ?? orientation ?? 0) === 90 ||
+    (selected?.degrees ?? orientation ?? 0) === 270;
+
+  const actions: ReadonlyArray<PagedSelectAction> = [
+    {
+      key: "rotate-left",
+      label: "Rotate Left (90° CCW)",
+      icon: <RotateLeftIcon />,
+      onClick: () => applyDelta(90),
+    },
+    {
+      key: "rotate-right",
+      label: "Rotate Right (90° CW)",
+      icon: <RotateRightIcon />,
+      onClick: () => applyDelta(270),
+    },
+    {
+      key: "mirror",
+      label: "Flip (180°)",
+      icon: <MirrorIcon rotated={isPortrait} />,
+      onClick: () => applyDelta(180),
+    },
+  ];
+
   return (
-    <>
-      <div className="field">
-        <div className="label">Orientation</div>
-        <PagedSelect
-          disabled={disabled}
-          triggerLabel={selected?.label ?? "Orientation"}
-          triggerIcon={triggerIcon}
-          pageCount={1}
-          getItemsForPage={buildItemsForPage}
-          selectedLabel={selected?.label ?? undefined}
-          onSelect={handleSelect}
-        />
-      </div>
-    </>
+    <div className="field">
+      <div className="label">Orientation</div>
+      <PagedSelect
+        disabled={disabled}
+        triggerLabel={selected?.label ?? "Orientation"}
+        triggerIcon={triggerIcon}
+        pageCount={1}
+        getItemsForPage={buildItemsForPage}
+        selectedLabel={selected?.label ?? undefined}
+        onSelect={handleSelect}
+        actions={actions}
+      />
+    </div>
   );
 }

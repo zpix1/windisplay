@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.17] - 2025-12-08
+
+- Added power toggle for monitors
+- Added controls to rotate and mirror monitors
+
 ## [0.3.16] - 2025-11-26
 
 - Suppressed useless error alerts
