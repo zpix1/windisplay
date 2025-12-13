@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "WinDisplay"
-version = "0.3.16"
+version = "0.3.17"
 dependencies = [
  "cfg-if",
  "clap",
