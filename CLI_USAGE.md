@@ -2,6 +2,14 @@
 
 WinDisplay can be used from the command line for automation and scripting. When no command is provided, the GUI application starts.
 
+### PowerShell note
+
+In production/release builds, `WinDisplay.exe` is built as a GUI-subsystem app (so it doesn’t open an extra console window when started normally).
+
+Because of that, **PowerShell may show the next prompt immediately**, and the command output can appear after the prompt.
+
+This is normal and the CLI command still runs correctly. If you need reliable, machine-friendly CLI behavior for scripting/automation, we can provide a separate console-subsystem CLI build, please create an issue.
+
 ### List Monitors
 
 Display information about all connected monitors:
