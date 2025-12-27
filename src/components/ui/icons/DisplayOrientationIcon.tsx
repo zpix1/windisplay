@@ -15,7 +15,7 @@ export function DisplayOrientationIcon({
 }: DisplayOrientationIconProps) {
   const viewBoxSize = 100;
   const padding = 10; // outer padding from edges (viewbox units)
-  const contentSize = viewBoxSize - padding * 2; // 80
+  const baseContentSize = viewBoxSize - padding * 2; // 80
 
   const match = /^(\d+)\s*:\s*(\d+)$/.exec(aspectRatioKey.trim());
   const aw = match ? parseInt(match[1], 10) : 16;
@@ -24,9 +24,32 @@ export function DisplayOrientationIcon({
   const safeAspectH = Math.max(1, Math.abs(ah));
   const aspect = safeAspectW / safeAspectH;
 
-  // Fit rectangle inside content box while preserving aspect
-  const rectWidth = aspect >= 1 ? contentSize : contentSize * aspect;
-  const rectHeight = aspect >= 1 ? contentSize / aspect : contentSize;
+  // Draw everything in a "base" orientation (bar at bottom), then rotate as needed.
+  // To avoid clipping after rotation, reserve space for the base bar inside the viewBox.
+  const normalizedOrientation = ((orientation % 360) + 360) % 360;
+  const gap = 0; // space between monitor outline and base bar
+
+  // Because we rotate the whole icon, 90/270 swaps the displayed width/height.
+  // Invert the layout aspect in those cases so the final on-screen rectangle matches aspectRatioKey.
+  const layoutAspect =
+    normalizedOrientation === 90 || normalizedOrientation === 270
+      ? 1 / aspect
+      : aspect;
+
+  // First pass: approximate rect size within base content, to estimate bar thickness.
+  const approxRectWidth =
+    layoutAspect >= 1 ? baseContentSize : baseContentSize * layoutAspect;
+  const approxRectHeight =
+    layoutAspect >= 1 ? baseContentSize / layoutAspect : baseContentSize;
+  const approxBarThickness = Math.max(
+    4,
+    Math.min(approxRectWidth, approxRectHeight) * 0.12
+  );
+
+  // Second pass: fit the monitor rectangle within the remaining space above the bar.
+  const contentSize = Math.max(1, baseContentSize - approxBarThickness - gap);
+  const rectWidth = layoutAspect >= 1 ? contentSize : contentSize * layoutAspect;
+  const rectHeight = layoutAspect >= 1 ? contentSize / layoutAspect : contentSize;
   const cx = viewBoxSize / 2;
   const cy = viewBoxSize / 2;
   const rectX = cx - rectWidth / 2;
@@ -37,9 +60,6 @@ export function DisplayOrientationIcon({
   const rectFill = "transparent";
   const barFill = "currentColor";
 
-  // External bar indicating monitor base (full width/height, outside the rectangle)
-  const normalizedOrientation = ((orientation % 360) + 360) % 360;
-  const gap = 0; // space between monitor outline and base line
   const barThickness = Math.max(4, Math.min(rectWidth, rectHeight) * 0.12);
 
   // Account for the rectangle stroke so the bar matches the OUTER bounds
@@ -48,29 +68,10 @@ export function DisplayOrientationIcon({
   const outerRectWidth = rectWidth + strokeWidth;
   const outerRectHeight = rectHeight + strokeWidth;
 
-  let barX = outerRectX;
-  let barY = outerRectY + outerRectHeight + gap; // default: bottom, flush with outer edge
-  let barW = outerRectWidth;
-  let barH = barThickness;
-  if (normalizedOrientation === 90) {
-    // left
-    barX = outerRectX - gap - barThickness;
-    barY = outerRectY;
-    barW = barThickness;
-    barH = outerRectHeight;
-  } else if (normalizedOrientation === 180) {
-    // top
-    barX = outerRectX;
-    barY = outerRectY - gap - barThickness;
-    barW = outerRectWidth;
-    barH = barThickness;
-  } else if (normalizedOrientation === 270) {
-    // right
-    barX = outerRectX + outerRectWidth + gap;
-    barY = outerRectY;
-    barW = barThickness;
-    barH = outerRectHeight;
-  }
+  const barX = outerRectX;
+  const barY = outerRectY + outerRectHeight + gap; // bottom, flush with outer edge
+  const barW = outerRectWidth;
+  const barH = barThickness;
 
   // Helper to build a path for a rounded rectangle where corners can be toggled independently
   const buildRoundedRectPath = (
@@ -107,16 +108,11 @@ export function DisplayOrientationIcon({
   const maxRadius = Math.min(rectWidth, rectHeight) / 2;
   const r = Math.min(cornerRadius, maxRadius);
 
-  const roundTL = normalizedOrientation === 0 || normalizedOrientation === 270; // no bar on top/left sides touching TL
-  const roundTR = normalizedOrientation === 0 || normalizedOrientation === 90; // no bar on top/right sides touching TR
-  const roundBR = normalizedOrientation === 180 || normalizedOrientation === 90; // no bar on bottom/right sides touching BR
-  const roundBL =
-    normalizedOrientation === 180 || normalizedOrientation === 270; // no bar on bottom/left sides touching BL
-
-  const rTL = roundTL ? r : 0;
-  const rTR = roundTR ? r : 0;
-  const rBR = roundBR ? r : 0;
-  const rBL = roundBL ? r : 0;
+  // Base orientation: bar touches the bottom edge → top corners rounded, bottom corners square.
+  const rTL = r;
+  const rTR = r;
+  const rBR = 0;
+  const rBL = 0;
 
   const monitorPathD = buildRoundedRectPath(
     rectX,
@@ -131,27 +127,11 @@ export function DisplayOrientationIcon({
 
   // Build a path for the bar with rounding only on the far side (away from the monitor)
   const barCornerRadius = Math.min(r, Math.min(barW, barH) / 2);
-  let barRTL = 0;
-  let barRTR = 0;
-  let barRBR = 0;
-  let barRBL = 0;
-  if (normalizedOrientation === 0) {
-    // bar at bottom → round bottom-left and bottom-right
-    barRBL = barCornerRadius;
-    barRBR = barCornerRadius;
-  } else if (normalizedOrientation === 180) {
-    // bar at top → round top-left and top-right
-    barRTL = barCornerRadius;
-    barRTR = barCornerRadius;
-  } else if (normalizedOrientation === 90) {
-    // bar at left → round top-left and bottom-left
-    barRTL = barCornerRadius;
-    barRBL = barCornerRadius;
-  } else if (normalizedOrientation === 270) {
-    // bar at right → round top-right and bottom-right
-    barRTR = barCornerRadius;
-    barRBR = barCornerRadius;
-  }
+  // Base orientation: bar at bottom → round bottom-left and bottom-right
+  const barRTL = 0;
+  const barRTR = 0;
+  const barRBR = barCornerRadius;
+  const barRBL = barCornerRadius;
 
   const barPathD = buildRoundedRectPath(
     barX,
@@ -164,6 +144,11 @@ export function DisplayOrientationIcon({
     barRBL
   );
 
+  const prefersReducedMotion = () => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  };
+
   return (
     <svg
       width={24}
@@ -173,30 +158,51 @@ export function DisplayOrientationIcon({
       aria-hidden
       focusable="false"
     >
-      {/* Outer container for rectangle with selective rounded corners */}
-      <path
-        d={monitorPathD}
-        fill={rectFill}
-        stroke={stroke}
-        strokeWidth={strokeWidth}
-      />
-
-      {/* Centered letter */}
-      <text
-        x={cx}
-        y={cy}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fontSize={Math.max(8, Math.min(rectWidth, rectHeight) * 0.7)}
-        fontWeight={500}
-        fill={stroke}
-        fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif"
+      <g
+        style={{
+          transform: `rotate(${normalizedOrientation}deg)`,
+          // Use a stable bounding box for transform calculations so rotation never "jumps" in size/position.
+          transformOrigin: "center",
+          transformBox: "fill-box",
+          transition: prefersReducedMotion()
+            ? "none"
+            : "transform 180ms cubic-bezier(0.2, 0, 0, 1)",
+        }}
       >
-        A
-      </text>
+        {/* Invisible rect ensures the group's bbox is always the full viewBox (prevents transform-box weirdness). */}
+        <rect
+          x={0}
+          y={0}
+          width={viewBoxSize}
+          height={viewBoxSize}
+          fill="transparent"
+        />
 
-      {/* External base line (full width/height) placed beside the monitor) with selective rounding on far side */}
-      <path d={barPathD} fill={barFill} stroke="none" />
+        {/* Outer container for rectangle with selective rounded corners */}
+        <path
+          d={monitorPathD}
+          fill={rectFill}
+          stroke={stroke}
+          strokeWidth={strokeWidth}
+        />
+
+        {/* Centered letter */}
+        <text
+          x={cx}
+          y={cy}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontSize={Math.max(8, Math.min(rectWidth, rectHeight) * 0.7)}
+          fontWeight={500}
+          fill={stroke}
+          fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif"
+        >
+          A
+        </text>
+
+        {/* External base bar with rounding only on the far side */}
+        <path d={barPathD} fill={barFill} stroke="none" />
+      </g>
     </svg>
   );
 }

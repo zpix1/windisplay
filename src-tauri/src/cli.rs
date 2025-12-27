@@ -1,9 +1,78 @@
 use crate::displays::DisplayInfo;
 use clap::{Parser, Subcommand};
 
+#[cfg(target_os = "windows")]
+fn attach_console_if_cli_invocation() {
+    use std::os::windows::io::AsRawHandle;
+
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::Console::{
+        AttachConsole, GetStdHandle, SetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE,
+        STD_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
+    };
+
+    // If no extra args were provided, we likely want to start the GUI (no console work needed).
+    let mut args = std::env::args_os();
+    let _exe = args.next();
+    if args.next().is_none() {
+        return;
+    }
+
+    // If the parent has a console (PowerShell/cmd), attach so stdout/stderr are visible.
+    // If it fails (e.g., launched from Explorer), we intentionally do nothing to avoid
+    // spawning a new console window.
+    unsafe {
+        let _ = AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+
+    fn handle_invalid(h: HANDLE) -> bool {
+        h.0 == 0 || h.0 == -1
+    }
+
+    fn std_handle_invalid(which: STD_HANDLE) -> bool {
+        unsafe {
+            match GetStdHandle(which) {
+                Ok(h) => handle_invalid(h),
+                Err(_) => true,
+            }
+        }
+    }
+
+    // Ensure the process std handles are usable (GUI-subsystem apps often start with null stdio).
+    // We open CONIN$/CONOUT$ only after attaching to a parent console.
+    unsafe {
+        if std_handle_invalid(STD_OUTPUT_HANDLE) {
+            if let Ok(conout) = std::fs::OpenOptions::new().write(true).open("CONOUT$") {
+                let handle = HANDLE(conout.as_raw_handle() as isize);
+                let _ = SetStdHandle(STD_OUTPUT_HANDLE, handle);
+                std::mem::forget(conout);
+            }
+        }
+
+        if std_handle_invalid(STD_ERROR_HANDLE) {
+            if let Ok(conerr) = std::fs::OpenOptions::new().write(true).open("CONOUT$") {
+                let handle = HANDLE(conerr.as_raw_handle() as isize);
+                let _ = SetStdHandle(STD_ERROR_HANDLE, handle);
+                std::mem::forget(conerr);
+            }
+        }
+
+        if std_handle_invalid(STD_INPUT_HANDLE) {
+            if let Ok(conin) = std::fs::OpenOptions::new().read(true).open("CONIN$") {
+                let handle = HANDLE(conin.as_raw_handle() as isize);
+                let _ = SetStdHandle(STD_INPUT_HANDLE, handle);
+                std::mem::forget(conin);
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn attach_console_if_cli_invocation() {}
+
 #[derive(Parser)]
 #[command(name = "WinDisplay")]
-#[command(about = "Windows Display Manager CLI", long_about = None)]
+#[command(about = "WinDisplay CLI")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -96,6 +165,7 @@ pub enum Commands {
 }
 
 pub fn run_cli() -> Result<bool, String> {
+    attach_console_if_cli_invocation();
     let cli = Cli::parse();
 
     match cli.command {

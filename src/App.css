@@ -80,22 +80,6 @@ body {
   color: #888;
 }
 
-.error {
-  color: #a01515;
-  background: #fff2f2;
-  border: 1px solid #ffd7d7;
-  padding: 8px 10px;
-  border-radius: 8px;
-  margin: 8px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.close {
-  cursor: pointer;
-  font-size: 16px;
-}
 
 .button {
   width: 100%;

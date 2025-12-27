@@ -5,6 +5,7 @@ import IdentifyMonitorsButton from "./components/IdentifyMonitorsButton";
 import MonitorControls from "./components/MonitorControls";
 import { Settings } from "./components/Settings/Settings";
 import { Selector } from "./components/ui/Selector/Selector";
+import { ErrorToast } from "./components/ui/ErrorToast/ErrorToast";
 import { CogIcon } from "./components/ui/icons/CogIcon";
 import { MonitorIcon } from "./components/ui/icons/MonitorIcon";
 import { useMonitorsContext } from "./context/MonitorsContext";
@@ -48,14 +49,7 @@ function App() {
 
   return (
     <div className="app-root">
-      {error && (
-        <div className="error">
-          {error}{" "}
-          <span className="close" onClick={() => setError(null)}>
-            close
-          </span>
-        </div>
-      )}
+      {error && <ErrorToast message={error} onClose={() => setError(null)} />}
 
       <div className="sections">
         {!loading && monitors.length === 0 && (
