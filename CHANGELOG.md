@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.18] - 2025-12-28
+
+- Added more animations and an error toast
+- Fixed a bug where the CLI had no output in release builds
+
 ## [0.3.17] - 2025-12-08
 
 - Added power toggle for monitors
