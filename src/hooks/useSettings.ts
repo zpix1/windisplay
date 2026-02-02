@@ -10,11 +10,15 @@ export type KeyboardBrightnessShortcut =
 export type Settings = {
   showUIOnMonitorChange: boolean;
   keyboardBrightnessShortcut: KeyboardBrightnessShortcut;
+  showStartupNotification: boolean;
+  shouldHideUIOnFocusOut: boolean;
 };
 
 const DEFAULT_SETTINGS: Settings = {
   showUIOnMonitorChange: false,
   keyboardBrightnessShortcut: "system",
+  showStartupNotification: true,
+  shouldHideUIOnFocusOut: true,
 };
 
 const STORE_KEY = "settings";

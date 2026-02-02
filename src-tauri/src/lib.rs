@@ -70,6 +70,12 @@ pub fn run() {
             displays::set_monitor_power,
         ])
         .setup(|app| {
+            // Log settings file location
+            if let Ok(mut settings_path) = app.path().app_data_dir() {
+                settings_path.push("settings.json");
+                log::info!("Settings file: {}", settings_path.display());
+            }
+
             // helper to reveal main window
             fn reveal_main_window(app_handle: &tauri::AppHandle) {
                 if let Some(window) = app_handle.get_webview_window("main") {
@@ -113,12 +119,14 @@ pub fn run() {
                 }
             }
             // Show a notification on startup to inform the user the app is running in the tray
-            app.notification()
-                .builder()
-                .title("WinDisplay")
-                .body("WinDisplay is running in the system tray.")
-                .show()
-                .unwrap();
+            if crate::settings::should_show_startup_notification_app(&app) {
+                app.notification()
+                    .builder()
+                    .title("WinDisplay")
+                    .body("WinDisplay is running in the system tray.")
+                    .show()
+                    .unwrap();
+            }
 
             // Build a tray context menu
             let show_item = MenuItem::with_id(app, "show", "Show", true, Some(""))?;
@@ -230,9 +238,12 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 // Hide on focus out
                 let window_for_event = window.clone();
+                let app_handle_for_event = app.handle().clone();
                 window.on_window_event(move |event| {
                     if let WindowEvent::Focused(false) = event {
-                        let _ = window_for_event.hide();
+                        if crate::settings::should_hide_ui_on_focus_out_handle(&app_handle_for_event) {
+                            let _ = window_for_event.hide();
+                        }
                     }
                 });
                 // Ensure the window does not appear in the taskbar

@@ -39,8 +39,9 @@
 
 .settings-checkbox,
 .settings-radio {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
   accent-color: #2b6cb0;
 }
 

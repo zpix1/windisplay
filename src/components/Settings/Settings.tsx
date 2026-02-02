@@ -121,6 +121,21 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
               </label>
             </div>
             <div className="settings-section">
+              <label className="settings-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={settings.showStartupNotification}
+                  onChange={(e) =>
+                    updateSettings({ showStartupNotification: e.target.checked })
+                  }
+                  className="settings-checkbox"
+                />
+                <span className="settings-checkbox-text">
+                  Show notification when app starts
+                </span>
+              </label>
+            </div>
+            <div className="settings-section">
               <CheckUpdatesButton />
             </div>
             {restartRequired && (
