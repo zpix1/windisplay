@@ -74,7 +74,7 @@ export function RefreshRateSlider({
           deviceName,
           width: current.width,
           height: current.height,
-          refresh_hz: nextHz,
+          refreshHz: nextHz,
         })
       );
     } catch (e) {

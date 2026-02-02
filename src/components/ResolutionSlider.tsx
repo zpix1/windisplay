@@ -65,7 +65,7 @@ export function ResolutionSlider({
         deviceName,
         width: resolution.width,
         height: resolution.height,
-        refresh_hz: current?.refresh_hz || 60,
+        refreshHz: current?.refresh_hz || 60,
       })
     );
   };
