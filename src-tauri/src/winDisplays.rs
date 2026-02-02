@@ -773,7 +773,7 @@ fn set_monitor_orientation_windows(
     use windows::Win32::Foundation::BOOL;
     use windows::Win32::Graphics::Gdi::{
         ChangeDisplaySettingsExW, EnumDisplaySettingsExW, DEVMODEW, DISP_CHANGE_SUCCESSFUL,
-        DM_DISPLAYORIENTATION, DM_PELSHEIGHT, DM_PELSWIDTH,
+        DM_DISPLAYORIENTATION, DM_PELSHEIGHT, DM_PELSWIDTH, CDS_UPDATEREGISTRY,
     };
 
     let mut dm: DEVMODEW = unsafe { zeroed() };
@@ -836,7 +836,7 @@ fn set_monitor_orientation_windows(
             windows::core::PCWSTR(wide.as_ptr()),
             Some(&mut dm),
             None,
-            windows::Win32::Graphics::Gdi::CDS_TYPE(0),
+            CDS_UPDATEREGISTRY,
             None,
         )
     };
@@ -850,6 +850,7 @@ fn set_monitor_orientation_windows(
         ))
     }
 }
+
 fn find_hmonitor_by_device_name(
     device_name: &str,
 ) -> Option<windows::Win32::Graphics::Gdi::HMONITOR> {
@@ -1404,8 +1405,23 @@ mod displayconfig_ffi {
 
     pub const QDC_ONLY_ACTIVE_PATHS: u32 = 0x00000002;
     pub const DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME: i32 = 1;
+    pub const DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME: i32 = 2;
     pub const DISPLAYCONFIG_DEVICE_INFO_GET_DPI_SCALE: i32 = -3; // undocumented
     pub const DISPLAYCONFIG_DEVICE_INFO_SET_DPI_SCALE: i32 = -4; // undocumented
+
+    /// DISPLAYCONFIG_TARGET_DEVICE_NAME structure for getting the monitor's GDI device path
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct DISPLAYCONFIG_TARGET_DEVICE_NAME {
+        pub header: DISPLAYCONFIG_DEVICE_INFO_HEADER,
+        pub flags: u32,
+        pub outputTechnology: u32,
+        pub edidManufactureId: u16,
+        pub edidProductCodeId: u16,
+        pub connectorInstance: u32,
+        pub monitorFriendlyDeviceName: [u16; 64],
+        pub monitorDevicePath: [u16; 128],
+    }
 
     #[repr(C)]
     #[derive(Clone, Copy, Default)]
@@ -1643,6 +1659,189 @@ fn get_all_monitor_names_windows() -> Result<Vec<String>, String> {
     Ok(names)
 }
 
+/// Get the monitor's GDI device path for registry lookup.
+/// This returns the path used as the subkey under PerMonitorSettings.
+fn get_monitor_registry_id(
+    adapter_id: windows::Win32::Foundation::LUID,
+    target_id: u32,
+) -> Option<String> {
+    use crate::winDisplays::displayconfig_ffi::*;
+    use std::mem::{size_of, zeroed};
+
+    let mut target_name: DISPLAYCONFIG_TARGET_DEVICE_NAME = unsafe { zeroed() };
+    target_name.header.r#type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
+    target_name.header.size = size_of::<DISPLAYCONFIG_TARGET_DEVICE_NAME>() as u32;
+    target_name.header.adapterId = adapter_id;
+    target_name.header.id = target_id;
+
+    let rc = unsafe { DisplayConfigGetDeviceInfo(&mut target_name.header) };
+    if rc != 0 {
+        log::warn!("DisplayConfigGetDeviceInfo(GET_TARGET_NAME) failed: {}", rc);
+        return None;
+    }
+
+    let device_path = widestr_to_string(&target_name.monitorDevicePath);
+    if device_path.is_empty() {
+        return None;
+    }
+
+    // The registry key is derived from the device path.
+    // Windows uses a transformed version: replace \ with # and remove \\?\ prefix
+    // Example: \\?\DISPLAY#DELA0FB#5&abc123#{...} -> DELA0FB#5&abc123#...
+    // The actual format varies, so we try to find the matching key by enumerating.
+    Some(device_path)
+}
+
+/// Write DPI value to the Windows registry for persistence.
+/// The DPI value is stored at:
+/// HKEY_CURRENT_USER\Control Panel\Desktop\PerMonitorSettings\{MONITOR_ID}\DpiValue
+fn write_dpi_to_registry(monitor_device_path: &str, dpi_value: u32) -> Result<(), String> {
+    use windows::Win32::System::Registry::{
+        RegCloseKey, RegCreateKeyW, RegEnumKeyExW, RegOpenKeyExW, RegSetValueExW, HKEY,
+        HKEY_CURRENT_USER, KEY_READ, REG_DWORD,
+    };
+
+    let base_path = to_wide_null_terminated(r"Control Panel\Desktop\PerMonitorSettings");
+
+    // Open the PerMonitorSettings key
+    let mut base_key: HKEY = HKEY::default();
+    let rc = unsafe {
+        RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            windows::core::PCWSTR(base_path.as_ptr()),
+            0,
+            KEY_READ,
+            &mut base_key,
+        )
+    };
+    if rc.is_err() {
+        log::warn!("Could not open PerMonitorSettings registry key");
+        return Err("Could not open PerMonitorSettings registry key".to_string());
+    }
+
+    // Enumerate subkeys to find one that matches our monitor
+    // The device path format is like: \\?\DISPLAY#DELA0FB#5&12345678&0&UID256#{...}
+    // The registry key format is like: DELA0FB5&12345678&0&UID256_00_07E3_A1^HASH
+    // We need to extract identifying parts from the device path
+    let path_lower = monitor_device_path.to_ascii_lowercase();
+
+    // Extract the monitor identifier portion (between DISPLAY# and the GUID)
+    let monitor_id = extract_monitor_id_from_path(&path_lower);
+
+    let mut matching_subkey: Option<String> = None;
+    let mut index: u32 = 0;
+    let mut name_buf: [u16; 512] = [0; 512];
+
+    loop {
+        let mut name_len: u32 = name_buf.len() as u32;
+        let rc = unsafe {
+            RegEnumKeyExW(
+                base_key,
+                index,
+                windows::core::PWSTR(name_buf.as_mut_ptr()),
+                &mut name_len,
+                None,
+                windows::core::PWSTR::null(),
+                None,
+                None,
+            )
+        };
+        if rc.is_err() {
+            break;
+        }
+
+        let subkey_name = widestr_to_string(&name_buf[..name_len as usize]);
+        let subkey_lower = subkey_name.to_ascii_lowercase();
+
+        // Check if this subkey matches our monitor
+        if let Some(ref id) = monitor_id {
+            if subkey_lower.contains(id) {
+                matching_subkey = Some(subkey_name);
+                break;
+            }
+        }
+
+        index += 1;
+    }
+
+    unsafe { RegCloseKey(base_key) };
+
+    // If we found a matching subkey, write the DpiValue to it
+    let subkey_path = match matching_subkey {
+        Some(name) => format!(r"Control Panel\Desktop\PerMonitorSettings\{}", name),
+        None => {
+            // No existing key found - we may need to create one, but Windows typically
+            // creates these when you first change scale. Log and continue anyway.
+            log::info!(
+                "No existing PerMonitorSettings key found for monitor, DPI may not persist"
+            );
+            return Ok(());
+        }
+    };
+
+    let subkey_wide = to_wide_null_terminated(&subkey_path);
+    let mut hkey: HKEY = HKEY::default();
+
+    // Use RegCreateKeyW which creates the key if it doesn't exist, or opens it if it does
+    let rc = unsafe {
+        RegCreateKeyW(
+            HKEY_CURRENT_USER,
+            windows::core::PCWSTR(subkey_wide.as_ptr()),
+            &mut hkey,
+        )
+    };
+    if rc.is_err() {
+        return Err(format!("Failed to open/create registry key: {:?}", rc));
+    }
+
+    let value_name = to_wide_null_terminated("DpiValue");
+    let dpi_bytes = dpi_value.to_le_bytes();
+
+    let rc = unsafe {
+        RegSetValueExW(
+            hkey,
+            windows::core::PCWSTR(value_name.as_ptr()),
+            0,
+            REG_DWORD,
+            Some(&dpi_bytes),
+        )
+    };
+
+    unsafe { RegCloseKey(hkey) };
+
+    if rc.is_err() {
+        return Err(format!("Failed to write DpiValue to registry: {:?}", rc));
+    }
+
+    log::info!(
+        "Wrote DpiValue={} to registry for monitor persistence",
+        dpi_value
+    );
+    Ok(())
+}
+
+/// Extract a monitor identifier from the device path for matching registry keys.
+/// Device path format: \\?\DISPLAY#DELA0FB#5&12345678&0&UID256#{GUID}
+/// We want to extract something like: "dela0fb" or "dela0fb5&12345678"
+fn extract_monitor_id_from_path(path: &str) -> Option<String> {
+    // Find the portion after "display#" and before the GUID
+    let path = path.to_ascii_lowercase();
+    let start = path.find("display#")?;
+    let after_display = &path[start + 8..]; // skip "display#"
+
+    // Find the GUID portion (starts with "#{")
+    let end = after_display.find("#{")?;
+    let id_portion = &after_display[..end];
+
+    // Extract the manufacturer/model code (first segment before #)
+    if let Some(first_hash) = id_portion.find('#') {
+        // Return just the manufacturer code for broader matching
+        Some(id_portion[..first_hash].to_string())
+    } else {
+        Some(id_portion.to_string())
+    }
+}
+
 fn set_monitor_scale_windows(device_name: &str, scale_percent: u32) -> Result<(), String> {
     use crate::winDisplays::displayconfig_ffi::*;
     use std::mem::{size_of, zeroed};
@@ -1675,8 +1874,8 @@ fn set_monitor_scale_windows(device_name: &str, scale_percent: u32) -> Result<()
             )
         })? as i32;
 
-    // Resolve adapterId + sourceId for the given device name
-    let (adapter_id, source_id): (LUID, u32) = {
+    // Resolve adapterId + sourceId + targetId for the given device name
+    let (adapter_id, source_id, target_adapter_id, target_id): (LUID, u32, LUID, u32) = {
         let mut num_paths: u32 = 0;
         let mut num_modes: u32 = 0;
         unsafe {
@@ -1703,7 +1902,7 @@ fn set_monitor_scale_windows(device_name: &str, scale_percent: u32) -> Result<()
             }
         }
 
-        let mut found: Option<(LUID, u32)> = None;
+        let mut found: Option<(LUID, u32, LUID, u32)> = None;
         for p in &paths {
             let mut src_name: DISPLAYCONFIG_SOURCE_DEVICE_NAME = unsafe { zeroed() };
             src_name.header.size = size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32;
@@ -1716,7 +1915,12 @@ fn set_monitor_scale_windows(device_name: &str, scale_percent: u32) -> Result<()
             }
             let name = widestr_to_string(&src_name.viewGdiDeviceName);
             if name == device_name {
-                found = Some((p.sourceInfo.adapterId, p.sourceInfo.id));
+                found = Some((
+                    p.sourceInfo.adapterId,
+                    p.sourceInfo.id,
+                    p.targetInfo.adapterId,
+                    p.targetInfo.id,
+                ));
                 break;
             }
         }
@@ -1773,6 +1977,22 @@ fn set_monitor_scale_windows(device_name: &str, scale_percent: u32) -> Result<()
             rc
         ));
     }
+
+    // Write to registry for persistence across reboots
+    // Calculate DPI value: scale_percent% = dpi_value/96 * 100
+    // So dpi_value = scale_percent * 96 / 100
+    let dpi_value = (scale_percent * 96 / 100) as u32;
+
+    // Get the monitor's device path for registry key lookup
+    if let Some(device_path) = get_monitor_registry_id(target_adapter_id, target_id) {
+        if let Err(e) = write_dpi_to_registry(&device_path, dpi_value) {
+            log::warn!("Failed to persist DPI to registry: {}", e);
+            // Don't fail the whole operation - the display change was applied
+        }
+    } else {
+        log::info!("Could not get monitor device path for registry persistence");
+    }
+
     Ok(())
 }
 
