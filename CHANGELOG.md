@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.19] - 2026-02-03
+
+- Made changes persistent (writes to registry)
+- Fixed a bug where the refresh rate might not update
+- Added a new setting to hide the start notification
+
 ## [0.3.18] - 2025-12-28
 
 - Added more animations and an error toast
