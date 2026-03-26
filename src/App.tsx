@@ -9,9 +9,11 @@ import { ErrorToast } from "./components/ui/ErrorToast/ErrorToast";
 import { CogIcon } from "./components/ui/icons/CogIcon";
 import { MonitorIcon } from "./components/ui/icons/MonitorIcon";
 import { useMonitorsContext } from "./context/MonitorsContext";
+import { useSettings } from "./hooks/useSettings";
 
 function App() {
   const { monitors, loading, error, setError } = useMonitorsContext();
+  const { settings, updateSettings, loading: settingsLoading } = useSettings();
   const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
     null
   );
@@ -47,6 +49,10 @@ function App() {
     [monitors, selectedDeviceName]
   );
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = settings.theme;
+  }, [settings.theme]);
+
   return (
     <div className="app-root">
       {error && <ErrorToast message={error} onClose={() => setError(null)} />}
@@ -70,10 +76,25 @@ function App() {
               disabled={loading}
             />
             <button
+              className="theme-toggle"
+              onClick={() =>
+                void updateSettings({
+                  theme: settings.theme === "dark" ? "light" : "dark",
+                })
+              }
+              aria-label={`Switch to ${settings.theme === "dark" ? "light" : "dark"} theme`}
+              aria-pressed={settings.theme === "dark"}
+              disabled={loading || settingsLoading}
+            >
+              <span className="theme-toggle-track">
+                <span className="theme-toggle-thumb" />
+              </span>
+            </button>
+            <button
               className="cog-button"
               onClick={() => setIsSettingsOpen(true)}
               aria-label="Open settings"
-              disabled={loading}
+              disabled={loading || settingsLoading}
             >
               <CogIcon size={20} />
             </button>
@@ -81,10 +102,25 @@ function App() {
         ) : (
           <div className="monitor-selector-container single-button">
             <button
+              className="theme-toggle standalone"
+              onClick={() =>
+                void updateSettings({
+                  theme: settings.theme === "dark" ? "light" : "dark",
+                })
+              }
+              aria-label={`Switch to ${settings.theme === "dark" ? "light" : "dark"} theme`}
+              aria-pressed={settings.theme === "dark"}
+              disabled={loading || settingsLoading}
+            >
+              <span className="theme-toggle-track">
+                <span className="theme-toggle-thumb" />
+              </span>
+            </button>
+            <button
               className="cog-button standalone"
               onClick={() => setIsSettingsOpen(true)}
               aria-label="Open settings"
-              disabled={loading}
+              disabled={loading || settingsLoading}
             >
               <CogIcon size={20} />
             </button>
