@@ -13,12 +13,9 @@ export function DisplayOrientationIcon({
   aspectRatioKey,
   orientation,
 }: DisplayOrientationIconProps) {
-  const viewBoxWidth = 100;
-  const viewBoxHeight = 72;
-  const paddingX = 8;
-  const paddingY = 10;
-  const baseContentWidth = viewBoxWidth - paddingX * 2;
-  const baseContentHeight = viewBoxHeight - paddingY * 2;
+  const viewBoxSize = 100;
+  const padding = 10; // outer padding from edges (viewbox units)
+  const baseContentSize = viewBoxSize - padding * 2; // 80
 
   const match = /^(\d+)\s*:\s*(\d+)$/.exec(aspectRatioKey.trim());
   const aw = match ? parseInt(match[1], 10) : 16;
@@ -41,30 +38,20 @@ export function DisplayOrientationIcon({
 
   // First pass: approximate rect size within base content, to estimate bar thickness.
   const approxRectWidth =
-    layoutAspect >= 1
-      ? baseContentWidth
-      : Math.min(baseContentWidth, baseContentHeight * layoutAspect);
+    layoutAspect >= 1 ? baseContentSize : baseContentSize * layoutAspect;
   const approxRectHeight =
-    layoutAspect >= 1
-      ? Math.min(baseContentHeight, baseContentWidth / layoutAspect)
-      : baseContentHeight;
+    layoutAspect >= 1 ? baseContentSize / layoutAspect : baseContentSize;
   const approxBarThickness = Math.max(
     4,
     Math.min(approxRectWidth, approxRectHeight) * 0.12
   );
 
   // Second pass: fit the monitor rectangle within the remaining space above the bar.
-  const availableHeight = Math.max(1, baseContentHeight - approxBarThickness - gap);
-  const rectWidth =
-    layoutAspect >= 1
-      ? Math.min(baseContentWidth, availableHeight * layoutAspect)
-      : availableHeight * layoutAspect;
-  const rectHeight =
-    layoutAspect >= 1
-      ? rectWidth / layoutAspect
-      : Math.min(availableHeight, baseContentWidth / layoutAspect);
-  const cx = viewBoxWidth / 2;
-  const cy = viewBoxHeight / 2;
+  const contentSize = Math.max(1, baseContentSize - approxBarThickness - gap);
+  const rectWidth = layoutAspect >= 1 ? contentSize : contentSize * layoutAspect;
+  const rectHeight = layoutAspect >= 1 ? contentSize / layoutAspect : contentSize;
+  const cx = viewBoxSize / 2;
+  const cy = viewBoxSize / 2;
   const rectX = cx - rectWidth / 2;
   const rectY = cy - rectHeight / 2;
 
@@ -73,7 +60,7 @@ export function DisplayOrientationIcon({
   const rectFill = "transparent";
   const barFill = "currentColor";
 
-  const barThickness = Math.max(4, Math.min(rectWidth, rectHeight) * 0.16);
+  const barThickness = Math.max(4, Math.min(rectWidth, rectHeight) * 0.12);
 
   // Account for the rectangle stroke so the bar matches the OUTER bounds
   const outerRectX = rectX - strokeWidth / 2;
@@ -164,9 +151,9 @@ export function DisplayOrientationIcon({
 
   return (
     <svg
-      width={18}
-      height={14}
-      viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+      width={24}
+      height={24}
+      viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
       focusable="false"
@@ -186,8 +173,8 @@ export function DisplayOrientationIcon({
         <rect
           x={0}
           y={0}
-          width={viewBoxWidth}
-          height={viewBoxHeight}
+          width={viewBoxSize}
+          height={viewBoxSize}
           fill="transparent"
         />
 
@@ -205,7 +192,7 @@ export function DisplayOrientationIcon({
           y={cy}
           textAnchor="middle"
           dominantBaseline="central"
-          fontSize={Math.max(8, Math.min(rectWidth, rectHeight) * 0.52)}
+          fontSize={Math.max(8, Math.min(rectWidth, rectHeight) * 0.7)}
           fontWeight={500}
           fill={stroke}
           fontFamily="system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif"
