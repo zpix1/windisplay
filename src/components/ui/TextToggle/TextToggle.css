@@ -29,9 +29,10 @@
 }
 
 .text-toggle .icon svg,
-.text-toggle .icon svg * {
+.text-toggle .text,
+.text-toggle .icon svg {
+    color: var(--toggle-icon-color);
     fill: var(--toggle-icon-color);
-    stroke: var(--toggle-icon-color);
 }
 
 /* Variant: no rounded background behind the icon */
@@ -46,9 +47,9 @@
 }
 
 .text-toggle > svg,
-.text-toggle > svg * {
+.text-toggle > svg {
+    color: var(--toggle-icon-color);
     fill: var(--toggle-icon-color);
-    stroke: var(--toggle-icon-color);
 }
 
 .text-toggle:hover .icon {
@@ -66,12 +67,7 @@
 }
 
 .text-toggle:not(.no-icon-bg).toggled .icon svg {
-    stroke: var(--toggle-icon-active-color);
-    fill: var(--toggle-icon-active-color);
-}
-
-.text-toggle:not(.no-icon-bg).toggled .icon svg * {
-    stroke: var(--toggle-icon-active-color);
+    color: var(--toggle-icon-active-color);
     fill: var(--toggle-icon-active-color);
 }
 

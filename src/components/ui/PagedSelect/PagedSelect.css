@@ -23,11 +23,9 @@
 }
 
 .select-trigger.button svg,
-.select-trigger.button svg *,
 .select-trigger.button .caret {
   color: var(--slider-icon);
   fill: var(--slider-icon);
-  stroke: var(--slider-icon);
 }
 
 .select-menu-content {
@@ -67,10 +65,9 @@
   outline: 2px solid var(--selector-popup-active);
 }
 
-.select-item svg,
-.select-item svg * {
+.select-item svg {
+  color: var(--slider-icon);
   fill: var(--slider-icon);
-  stroke: var(--slider-icon);
 }
 
 .menu-header {

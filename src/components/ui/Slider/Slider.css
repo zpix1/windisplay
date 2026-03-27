@@ -46,10 +46,9 @@
   margin: 2px 0 2px 6px;
 }
 
-.slider-overlay > svg,
-.slider-overlay > svg * {
+.slider-overlay > svg {
+  color: var(--slider-icon);
   fill: var(--slider-icon);
-  stroke: var(--slider-icon);
 }
 
 .slider-label {
