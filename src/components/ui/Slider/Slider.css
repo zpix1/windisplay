@@ -47,7 +47,7 @@
 }
 
 .slider-overlay > svg {
-  fill: var(--icon-muted);
+  fill: var(--slider-icon);
 }
 
 .slider-label {

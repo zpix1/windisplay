@@ -42,7 +42,7 @@
   width: 14px;
   height: 14px;
   flex-shrink: 0;
-  accent-color: #2b6cb0;
+  accent-color: var(--accent);
 }
 
 .settings-checkbox-text,

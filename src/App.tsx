@@ -11,9 +11,20 @@ import { MonitorIcon } from "./components/ui/icons/MonitorIcon";
 import { useMonitorsContext } from "./context/MonitorsContext";
 import { useSettings } from "./hooks/useSettings";
 
+function getSystemTheme(): "light" | "dark" {
+  if (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  ) {
+    return "dark";
+  }
+
+  return "light";
+}
+
 function App() {
   const { monitors, loading, error, setError } = useMonitorsContext();
-  const { settings, updateSettings, loading: settingsLoading } = useSettings();
+  const { settings, loading: settingsLoading } = useSettings();
   const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
     null
   );
@@ -50,7 +61,22 @@ function App() {
   );
 
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme;
+    const applyTheme = () => {
+      document.documentElement.dataset.theme =
+        settings.theme === "system" ? getSystemTheme() : settings.theme;
+    };
+
+    applyTheme();
+
+    if (settings.theme !== "system") {
+      return;
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => applyTheme();
+
+    media.addEventListener("change", handleChange);
+    return () => media.removeEventListener("change", handleChange);
   }, [settings.theme]);
 
   return (
@@ -76,21 +102,6 @@ function App() {
               disabled={loading}
             />
             <button
-              className="theme-toggle"
-              onClick={() =>
-                void updateSettings({
-                  theme: settings.theme === "dark" ? "light" : "dark",
-                })
-              }
-              aria-label={`Switch to ${settings.theme === "dark" ? "light" : "dark"} theme`}
-              aria-pressed={settings.theme === "dark"}
-              disabled={loading || settingsLoading}
-            >
-              <span className="theme-toggle-track">
-                <span className="theme-toggle-thumb" />
-              </span>
-            </button>
-            <button
               className="cog-button"
               onClick={() => setIsSettingsOpen(true)}
               aria-label="Open settings"
@@ -101,21 +112,6 @@ function App() {
           </div>
         ) : (
           <div className="monitor-selector-container single-button">
-            <button
-              className="theme-toggle standalone"
-              onClick={() =>
-                void updateSettings({
-                  theme: settings.theme === "dark" ? "light" : "dark",
-                })
-              }
-              aria-label={`Switch to ${settings.theme === "dark" ? "light" : "dark"} theme`}
-              aria-pressed={settings.theme === "dark"}
-              disabled={loading || settingsLoading}
-            >
-              <span className="theme-toggle-track">
-                <span className="theme-toggle-thumb" />
-              </span>
-            </button>
             <button
               className="cog-button standalone"
               onClick={() => setIsSettingsOpen(true)}
