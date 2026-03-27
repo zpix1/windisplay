@@ -50,7 +50,7 @@ export function HdrIcon({ on }: HdrIconProps) {
         >
           <g
             id="ic_fluent_hdr_24_regular"
-            fill={on ? `url(#${gradientId})` : "#212121"}
+            fill={on ? `url(#${gradientId})` : "var(--toggle-icon-color)"}
             fill-rule="nonzero"
           >
             <path

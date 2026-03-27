@@ -24,6 +24,11 @@
   --selector-popup-active: #2b6cb0;
   --selector-popup-border: #d0d0d0;
   --selector-popup-text: #1b1b1b;
+  --toggle-icon-bg: #d8d8d8;
+  --toggle-icon-hover: #bebebe;
+  --toggle-icon-active: #5688ee;
+  --toggle-icon-color: #2b3340;
+  --toggle-icon-active-color: #ffffff;
   --overlay-bg: rgba(0, 0, 0, 0.5);
   --dialog-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   --connection-bg: #f5f5f5;
@@ -54,6 +59,11 @@
   --selector-popup-active: #6ea8ff;
   --selector-popup-border: #47566d;
   --selector-popup-text: #f3f7ff;
+  --toggle-icon-bg: #2f3a49;
+  --toggle-icon-hover: #3c495c;
+  --toggle-icon-active: #6ea8ff;
+  --toggle-icon-color: #eef4ff;
+  --toggle-icon-active-color: #0d1622;
   --slider-fill: #6ea8ff;
   --slider-track: #303a48;
   --thumb-bg: #f5f8ff;

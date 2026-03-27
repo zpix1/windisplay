@@ -10,14 +10,15 @@
     padding: 4px 14px;
     border-radius: 8px;
     font-weight: 400;
+    color: var(--text-primary);
 }
 
 .text-toggle:hover, .text-toggle.loading {
-    background-color: #D4D4D4;
+    background-color: var(--panel-bg-soft);
 }
 
 .text-toggle .icon {
-    background-color: #D8D8D8;
+    background-color: var(--toggle-icon-bg);
     border-radius: 50%;
     padding: 5px;
     width: 28px;
@@ -25,6 +26,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.text-toggle .icon svg,
+.text-toggle .icon svg * {
+    fill: var(--toggle-icon-color);
+    stroke: var(--toggle-icon-color);
 }
 
 /* Variant: no rounded background behind the icon */
@@ -38,12 +45,18 @@
     flex-grow: 1;
 }
 
+.text-toggle > svg,
+.text-toggle > svg * {
+    fill: var(--toggle-icon-color);
+    stroke: var(--toggle-icon-color);
+}
+
 .text-toggle:hover .icon {
-    background-color: #BEBEBE;
+    background-color: var(--toggle-icon-hover);
 }
 
 .text-toggle.toggled .icon {
-    background-color: #5688EE;
+    background-color: var(--toggle-icon-active);
 }
 
 /* Ensure no background on hover/toggled when no-icon-bg is set */
@@ -53,8 +66,13 @@
 }
 
 .text-toggle:not(.no-icon-bg).toggled .icon svg {
-    stroke: #fff;
-    fill: #fff;
+    stroke: var(--toggle-icon-active-color);
+    fill: var(--toggle-icon-active-color);
+}
+
+.text-toggle:not(.no-icon-bg).toggled .icon svg * {
+    stroke: var(--toggle-icon-active-color);
+    fill: var(--toggle-icon-active-color);
 }
 
 .text-toggle.disabled {
