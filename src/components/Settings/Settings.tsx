@@ -4,6 +4,7 @@ import {
   useSettings,
   type KeyboardBrightnessShortcut,
   type Settings,
+  type ThemeMode,
 } from "../../hooks/useSettings";
 import { relaunch } from "@tauri-apps/plugin-process";
 import "./Settings.css";
@@ -42,6 +43,10 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     updateSettings({ keyboardBrightnessShortcut: value });
   };
 
+  const handleThemeChange = (value: ThemeMode) => {
+    updateSettings({ theme: value });
+  };
+
   return (
     <Dialog isOpen={isOpen} onClose={onClose} className="settings-dialog">
       <div className="settings-container">
@@ -49,6 +54,44 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
           <div className="settings-loading">Loading settings...</div>
         ) : (
           <div className="settings-content">
+            <div className="settings-section">
+              <div className="settings-section-title">Theme</div>
+              <div className="settings-radio-group">
+                <label className="settings-radio-label">
+                  <input
+                    type="radio"
+                    name="theme"
+                    value="system"
+                    checked={settings.theme === "system"}
+                    onChange={() => handleThemeChange("system")}
+                    className="settings-radio"
+                  />
+                  <span className="settings-radio-text">System default</span>
+                </label>
+                <label className="settings-radio-label">
+                  <input
+                    type="radio"
+                    name="theme"
+                    value="light"
+                    checked={settings.theme === "light"}
+                    onChange={() => handleThemeChange("light")}
+                    className="settings-radio"
+                  />
+                  <span className="settings-radio-text">Light</span>
+                </label>
+                <label className="settings-radio-label">
+                  <input
+                    type="radio"
+                    name="theme"
+                    value="dark"
+                    checked={settings.theme === "dark"}
+                    onChange={() => handleThemeChange("dark")}
+                    className="settings-radio"
+                  />
+                  <span className="settings-radio-text">Dark</span>
+                </label>
+              </div>
+            </div>
             <div className="settings-section">
               <div className="settings-section-title">
                 Brightness Keys Affect:{" "}

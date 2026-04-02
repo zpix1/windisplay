@@ -7,11 +7,14 @@ export type KeyboardBrightnessShortcut =
   | "screen_with_mouse"
   | "system";
 
+export type ThemeMode = "light" | "dark" | "system";
+
 export type Settings = {
   showUIOnMonitorChange: boolean;
   keyboardBrightnessShortcut: KeyboardBrightnessShortcut;
   showStartupNotification: boolean;
   shouldHideUIOnFocusOut: boolean;
+  theme: ThemeMode;
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -19,6 +22,7 @@ const DEFAULT_SETTINGS: Settings = {
   keyboardBrightnessShortcut: "system",
   showStartupNotification: true,
   shouldHideUIOnFocusOut: true,
+  theme: "system",
 };
 
 const STORE_KEY = "settings";

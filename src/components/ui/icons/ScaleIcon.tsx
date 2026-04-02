@@ -3,7 +3,7 @@ export function ScaleIcon() {
     <svg
       width={20}
       height={20}
-      fill="#000000"
+      fill="currentColor"
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
     >

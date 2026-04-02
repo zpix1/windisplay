@@ -29,3 +29,4 @@ For CLI usage instructions, see [CLI_USAGE.md](CLI_USAGE.md).
 
 - [zpix1](https://github.com/zpix1) - Ivan Baksheev
 - [exSnake](https://github.com/exSnake)
+- [Cesarsk](https://github.com/Cesarsk)
