@@ -1,7 +1,7 @@
 export function ResolutionIcon() {
   return (
     <svg
-      fill="#000000"
+      fill="currentColor"
       width="18px"
       height="15px"
       viewBox="0 0 24 24"

@@ -1,6 +1,8 @@
 use crate::displays::{BrightnessInfo, DisplayInfo, Displays, Resolution, ScaleInfo};
 use serde::Deserialize;
 use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::process::Command;
@@ -938,24 +940,43 @@ fn with_first_physical_monitor<
     result
 }
 
-fn get_monitor_brightness_windows(device_name: String) -> Result<BrightnessInfo, String> {
+fn brightness_range_cache() -> &'static Mutex<HashMap<String, (u32, u32)>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, (u32, u32)>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn get_cached_brightness_range(device_name: &str) -> Option<(u32, u32)> {
+    brightness_range_cache()
+        .lock()
+        .ok()
+        .and_then(|cache| cache.get(device_name).copied())
+}
+
+fn cache_brightness_range(device_name: &str, min: u32, max: u32) {
+    if let Ok(mut cache) = brightness_range_cache().lock() {
+        cache.insert(device_name.to_string(), (min, max));
+    }
+}
+
+fn read_monitor_brightness_range(device_name: &str) -> Result<(u32, u32, u32), String> {
     use windows::Win32::Devices::Display::GetMonitorBrightness;
 
-    match with_first_physical_monitor(&device_name, |pm| {
+    with_first_physical_monitor(device_name, |pm| {
         let mut min = 0u32;
         let mut cur = 0u32;
         let mut max = 0u32;
         let ok = unsafe { GetMonitorBrightness(pm.hPhysicalMonitor, &mut min, &mut cur, &mut max) };
-        if ok == 0 {
+        if ok == 0 || max < min {
             return Err("GetMonitorBrightness failed (monitor may not support DDC/CI)".to_string());
         }
-        Ok(BrightnessInfo {
-            min,
-            current: cur,
-            max,
-        })
-    }) {
-        Ok(b) => Ok(b),
+        cache_brightness_range(device_name, min, max);
+        Ok((min, cur, max))
+    })
+}
+
+fn get_monitor_brightness_windows(device_name: String) -> Result<BrightnessInfo, String> {
+    match read_monitor_brightness_range(&device_name) {
+        Ok((min, current, max)) => Ok(BrightnessInfo { min, current, max }),
         Err(_e) => {
             // Fallback: WMI (internal displays)
             if let Some(b) = wmi_get_brightness_via_powershell() {
@@ -975,19 +996,20 @@ fn get_monitor_brightness_windows(device_name: String) -> Result<BrightnessInfo,
 }
 
 fn set_monitor_brightness_windows(device_name: String, percent: u32) -> Result<(), String> {
-    use windows::Win32::Devices::Display::{GetMonitorBrightness, SetMonitorBrightness};
+    use windows::Win32::Devices::Display::SetMonitorBrightness;
 
     let pct = percent.min(100);
-    match with_first_physical_monitor(&device_name, |pm| {
-        let mut min = 0u32;
-        let mut cur = 0u32;
-        let mut max = 0u32;
-        let ok = unsafe { GetMonitorBrightness(pm.hPhysicalMonitor, &mut min, &mut cur, &mut max) };
-        if ok == 0 || max < min {
-            return Err("GetMonitorBrightness failed (monitor may not support DDC/CI)".to_string());
+    let (min, max) = match get_cached_brightness_range(&device_name) {
+        Some((min, max)) if max >= min => (min, max),
+        _ => {
+            let (min, _cur, max) = read_monitor_brightness_range(&device_name)?;
+            (min, max)
         }
-        let span = max - min;
-        let value = min + ((span as u64 * pct as u64 + 50) / 100) as u32;
+    };
+    let span = max - min;
+    let value = min + ((span as u64 * pct as u64 + 50) / 100) as u32;
+
+    match with_first_physical_monitor(&device_name, |pm| {
         let ok = unsafe { SetMonitorBrightness(pm.hPhysicalMonitor, value) };
         if ok == 0 {
             return Err("SetMonitorBrightness failed".to_string());

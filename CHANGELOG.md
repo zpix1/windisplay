@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.20] - 2026-04-02
+
+- [#16](https://github.com/zpix1/windisplay/pull/16) Improve brightness responsiveness and add theme toggle by @Cesarsk
+
 ## [0.3.19] - 2026-02-03
 
 - Made changes persistent (writes to registry)

@@ -5,11 +5,12 @@ export function SectionIcon() {
       height="18px"
       viewBox="0 0 18 18"
       xmlns="http://www.w3.org/2000/svg"
-      fill="#000000"
+      fill="none"
+      color="currentColor"
     >
       <path
         d="M6 4l6 5-6 5"
-        stroke="#000000"
+        stroke="currentColor"
         strokeWidth="2"
         fill="none"
         strokeLinecap="round"

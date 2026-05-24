@@ -94,8 +94,11 @@ export function BrightnessSlider({
         value={pct ?? 0}
         onChange={(next) => {
           setPct(next);
-          console.log("onChange", deviceName, next);
           throttledApply(next);
+        }}
+        onValueSubmit={(next) => {
+          setPct(next);
+          void apply(next);
         }}
         icon={<BrightnessIcon />}
         label={`${pct ?? 0}%`}
