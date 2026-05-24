@@ -772,8 +772,8 @@ fn set_monitor_orientation_windows(
     use std::mem::{size_of, zeroed};
     use windows::Win32::Foundation::BOOL;
     use windows::Win32::Graphics::Gdi::{
-        ChangeDisplaySettingsExW, EnumDisplaySettingsExW, DEVMODEW, DISP_CHANGE_SUCCESSFUL,
-        DM_DISPLAYORIENTATION, DM_PELSHEIGHT, DM_PELSWIDTH, CDS_UPDATEREGISTRY,
+        ChangeDisplaySettingsExW, EnumDisplaySettingsExW, CDS_UPDATEREGISTRY, DEVMODEW,
+        DISP_CHANGE_SUCCESSFUL, DM_DISPLAYORIENTATION, DM_PELSHEIGHT, DM_PELSWIDTH,
     };
 
     let mut dm: DEVMODEW = unsafe { zeroed() };
@@ -1772,9 +1772,7 @@ fn write_dpi_to_registry(monitor_device_path: &str, dpi_value: u32) -> Result<()
         None => {
             // No existing key found - we may need to create one, but Windows typically
             // creates these when you first change scale. Log and continue anyway.
-            log::info!(
-                "No existing PerMonitorSettings key found for monitor, DPI may not persist"
-            );
+            log::info!("No existing PerMonitorSettings key found for monitor, DPI may not persist");
             return Ok(());
         }
     };

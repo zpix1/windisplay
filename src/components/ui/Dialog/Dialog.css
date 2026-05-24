@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: var(--overlay-bg);
   z-index: 9998;
   animation: fadeIn 0.2s ease-in-out;
 }
@@ -39,9 +39,9 @@
   width: 90%;
   max-width: 500px;
   max-height: 80vh;
-  background: #fff;
-  border: 1px solid #9a9a9a;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border-strong);
+  box-shadow: var(--dialog-shadow);
   border-radius: 13px;
   z-index: 9999;
   animation: slideIn 0.2s ease-out;
@@ -72,4 +72,3 @@
     transform: translate(-50%, -48%);
   }
 }
-

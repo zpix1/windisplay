@@ -24,7 +24,7 @@ export default function MonitorControls({
       <BrightnessSlider
         deviceName={monitor.device_name}
         requiresWmi={monitor.built_in}
-        disabled={disabled}
+        disabled={disabled || monitor.hdr_status === "on"}
         onError={onError}
       />
 

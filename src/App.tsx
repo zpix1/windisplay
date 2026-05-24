@@ -9,9 +9,22 @@ import { ErrorToast } from "./components/ui/ErrorToast/ErrorToast";
 import { CogIcon } from "./components/ui/icons/CogIcon";
 import { MonitorIcon } from "./components/ui/icons/MonitorIcon";
 import { useMonitorsContext } from "./context/MonitorsContext";
+import { useSettings } from "./hooks/useSettings";
+
+function getSystemTheme(): "light" | "dark" {
+  if (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  ) {
+    return "dark";
+  }
+
+  return "light";
+}
 
 function App() {
   const { monitors, loading, error, setError } = useMonitorsContext();
+  const { settings, loading: settingsLoading } = useSettings();
   const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
     null
   );
@@ -47,6 +60,25 @@ function App() {
     [monitors, selectedDeviceName]
   );
 
+  useEffect(() => {
+    const applyTheme = () => {
+      document.documentElement.dataset.theme =
+        settings.theme === "system" ? getSystemTheme() : settings.theme;
+    };
+
+    applyTheme();
+
+    if (settings.theme !== "system") {
+      return;
+    }
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = () => applyTheme();
+
+    media.addEventListener("change", handleChange);
+    return () => media.removeEventListener("change", handleChange);
+  }, [settings.theme]);
+
   return (
     <div className="app-root">
       {error && <ErrorToast message={error} onClose={() => setError(null)} />}
@@ -73,7 +105,7 @@ function App() {
               className="cog-button"
               onClick={() => setIsSettingsOpen(true)}
               aria-label="Open settings"
-              disabled={loading}
+              disabled={loading || settingsLoading}
             >
               <CogIcon size={20} />
             </button>
@@ -84,7 +116,7 @@ function App() {
               className="cog-button standalone"
               onClick={() => setIsSettingsOpen(true)}
               aria-label="Open settings"
-              disabled={loading}
+              disabled={loading || settingsLoading}
             >
               <CogIcon size={20} />
             </button>
