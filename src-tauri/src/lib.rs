@@ -93,6 +93,13 @@ pub fn run() {
                     let _ = window.hide();
                 }
             }
+
+            fn is_main_window_visible(app_handle: &tauri::AppHandle) -> bool {
+                app_handle
+                    .get_webview_window("main")
+                    .and_then(|window| window.is_visible().ok())
+                    .unwrap_or(false)
+            }
             // Enable autostart by default on first run (persist marker so user choice isn't overridden)
             // Only do this in release builds to avoid registering a dev (console) binary on Windows.
             #[cfg(all(desktop, not(debug_assertions)))]
@@ -150,7 +157,6 @@ pub fn run() {
             let menu =
                 Menu::with_items(app, &[&show_item, &autostart_item, &about_item, &exit_item])?;
 
-            let main_window_open = Arc::new(AtomicBool::new(false));
             let focus_out_generation = Arc::new(AtomicU64::new(0));
             let tray_click_open_at_down = Arc::new(AtomicBool::new(false));
 
@@ -161,14 +167,12 @@ pub fn run() {
                 .tooltip("WinDisplay");
 
             let autostart_item_handle = autostart_item.clone();
-            let main_window_open_for_menu = Arc::clone(&main_window_open);
             let focus_out_generation_for_menu = Arc::clone(&focus_out_generation);
             let tray_builder =
                 tray_builder.on_menu_event(move |app_handle, event| match event.id().as_ref() {
                     "show" => {
                         focus_out_generation_for_menu.fetch_add(1, Ordering::SeqCst);
                         reveal_main_window(&app_handle);
-                        main_window_open_for_menu.store(true, Ordering::SeqCst);
                     }
                     "autostart_toggle" => {
                         use tauri_plugin_autostart::ManagerExt;
@@ -208,7 +212,6 @@ pub fn run() {
                     _ => {}
                 });
 
-            let main_window_open_for_icon = Arc::clone(&main_window_open);
             let focus_out_generation_for_icon = Arc::clone(&focus_out_generation);
             let tray_click_open_at_down_for_icon = Arc::clone(&tray_click_open_at_down);
             let tray_builder = tray_builder.on_tray_icon_event(move |tray, event| {
@@ -223,17 +226,18 @@ pub fn run() {
 
                     match button_state {
                         MouseButtonState::Down => {
-                            tray_click_open_at_down_for_icon
-                                .store(main_window_open_for_icon.load(Ordering::SeqCst), Ordering::SeqCst);
+                            tray_click_open_at_down_for_icon.store(
+                                is_main_window_visible(&app),
+                                Ordering::SeqCst,
+                            );
                             focus_out_generation_for_icon.fetch_add(1, Ordering::SeqCst);
                         }
                         MouseButtonState::Up => {
                             focus_out_generation_for_icon.fetch_add(1, Ordering::SeqCst);
                             if tray_click_open_at_down_for_icon.load(Ordering::SeqCst)
-                                || main_window_open_for_icon.load(Ordering::SeqCst)
+                                || is_main_window_visible(&app)
                             {
                                 hide_main_window(&app);
-                                main_window_open_for_icon.store(false, Ordering::SeqCst);
                                 tray_click_open_at_down_for_icon.store(false, Ordering::SeqCst);
                             } else if let Some(window) = app.get_webview_window("main") {
                                 let pos = positioning::compute_window_position_for_tray_click(
@@ -244,7 +248,6 @@ pub fn run() {
                                 let _ = window.set_position(pos);
 
                                 reveal_main_window(&app);
-                                main_window_open_for_icon.store(true, Ordering::SeqCst);
                             }
                         }
                     }
@@ -277,7 +280,6 @@ pub fn run() {
                 // Hide on focus out
                 let window_for_event = window.clone();
                 let app_handle_for_event = app.handle().clone();
-                let main_window_open_for_event = Arc::clone(&main_window_open);
                 let focus_out_generation_for_event = Arc::clone(&focus_out_generation);
                 window.on_window_event(move |event| {
                     if let WindowEvent::Focused(false) = event {
@@ -285,16 +287,14 @@ pub fn run() {
                             let generation =
                                 focus_out_generation_for_event.fetch_add(1, Ordering::SeqCst) + 1;
                             let window_for_hide = window_for_event.clone();
-                            let main_window_open_for_hide = Arc::clone(&main_window_open_for_event);
                             let focus_out_generation_for_hide =
                                 Arc::clone(&focus_out_generation_for_event);
-                            std::thread::spawn(move || {
+                            tauri::async_runtime::spawn_blocking(move || {
                                 std::thread::sleep(Duration::from_millis(300));
                                 if focus_out_generation_for_hide.load(Ordering::SeqCst) == generation
-                                    && main_window_open_for_hide.load(Ordering::SeqCst)
+                                    && window_for_hide.is_visible().unwrap_or(false)
                                 {
                                     let _ = window_for_hide.hide();
-                                    main_window_open_for_hide.store(false, Ordering::SeqCst);
                                 }
                             });
                         }
