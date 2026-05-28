@@ -1,7 +1,5 @@
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-use tauri::WindowEvent;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::{Manager, PhysicalPosition, Position, WindowEvent};
 
 mod cli;
 mod display_monitor;
@@ -16,6 +14,8 @@ mod winDisplays;
 pub mod winHdr;
 
 const AUTOSTART_BASE_LABEL: &str = "Start at login";
+const PARKED_WINDOW_POSITION: PhysicalPosition<i32> = PhysicalPosition { x: -32000, y: -32000 };
+static MAIN_WINDOW_OPEN: AtomicBool = AtomicBool::new(false);
 
 fn autostart_label(enabled: bool) -> String {
     if enabled {
@@ -23,6 +23,67 @@ fn autostart_label(enabled: bool) -> String {
     } else {
         AUTOSTART_BASE_LABEL.to_string()
     }
+}
+
+pub(crate) fn reveal_main_window(app_handle: &tauri::AppHandle) -> bool {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_ignore_cursor_events(false);
+        let _ = window.set_focus();
+        MAIN_WINDOW_OPEN.store(true, Ordering::SeqCst);
+        true
+    } else {
+        false
+    }
+}
+
+fn park_main_window(app_handle: &tauri::AppHandle) -> bool {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let _ = window.set_ignore_cursor_events(true);
+        let _ = window.set_position(Position::Physical(PARKED_WINDOW_POSITION));
+        MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
+        true
+    } else {
+        false
+    }
+}
+
+fn toggle_main_window_for_tray_click(
+    app_handle: &tauri::AppHandle,
+    tray_position: Position,
+) -> bool {
+    if MAIN_WINDOW_OPEN.load(Ordering::SeqCst) {
+        park_main_window(app_handle)
+    } else if let Some(window) = app_handle.get_webview_window("main") {
+        let pos = positioning::compute_window_position_for_tray_click(
+            app_handle,
+            &window,
+            tray_position,
+        );
+        let _ = window.set_position(pos);
+        reveal_main_window(app_handle)
+    } else {
+        false
+    }
+}
+
+fn write_smoke_report(message: String) {
+    if let Some(path) = std::env::var_os("WINDISPLAY_SMOKE_OUT") {
+        use std::io::Write;
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(file, "{message}");
+        }
+    }
+}
+
+#[tauri::command]
+fn smoke_report(message: String) {
+    write_smoke_report(message);
 }
 
 pub fn run() {
@@ -39,11 +100,10 @@ pub fn run() {
         }
     }
 
-    use crate::positioning;
     use tauri::{
         menu::{Menu, MenuItem},
         tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-        Manager, WebviewUrl, WebviewWindowBuilder,
+        WebviewUrl, WebviewWindowBuilder,
     };
     use tauri_plugin_notification::NotificationExt;
 
@@ -71,6 +131,7 @@ pub fn run() {
             displays::get_monitor_input_source,
             displays::get_monitor_ddc_caps,
             displays::set_monitor_power,
+            smoke_report,
         ])
         .setup(|app| {
             // Log settings file location
@@ -79,27 +140,6 @@ pub fn run() {
                 log::info!("Settings file: {}", settings_path.display());
             }
 
-            fn reveal_main_window(
-                app_handle: &tauri::AppHandle,
-                main_window_open: &AtomicBool,
-            ) {
-                if let Some(window) = app_handle.get_webview_window("main") {
-                    let _ = window.unminimize();
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    main_window_open.store(true, Ordering::SeqCst);
-                }
-            }
-
-            fn hide_main_window(
-                app_handle: &tauri::AppHandle,
-                main_window_open: &AtomicBool,
-            ) {
-                if let Some(window) = app_handle.get_webview_window("main") {
-                    let _ = window.hide();
-                    main_window_open.store(false, Ordering::SeqCst);
-                }
-            }
             // Enable autostart by default on first run (persist marker so user choice isn't overridden)
             // Only do this in release builds to avoid registering a dev (console) binary on Windows.
             #[cfg(all(desktop, not(debug_assertions)))]
@@ -157,9 +197,7 @@ pub fn run() {
             let menu =
                 Menu::with_items(app, &[&show_item, &autostart_item, &about_item, &exit_item])?;
 
-            let main_window_open = Arc::new(AtomicBool::new(false));
-            let focus_out_generation = Arc::new(AtomicU64::new(0));
-            let tray_click_open_at_down = Arc::new(AtomicBool::new(false));
+            MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
 
             let tray_builder = TrayIconBuilder::new()
                 .menu(&menu)
@@ -168,13 +206,10 @@ pub fn run() {
                 .tooltip("WinDisplay");
 
             let autostart_item_handle = autostart_item.clone();
-            let main_window_open_for_menu = Arc::clone(&main_window_open);
-            let focus_out_generation_for_menu = Arc::clone(&focus_out_generation);
             let tray_builder =
                 tray_builder.on_menu_event(move |app_handle, event| match event.id().as_ref() {
                     "show" => {
-                        focus_out_generation_for_menu.fetch_add(1, Ordering::SeqCst);
-                        reveal_main_window(&app_handle, &main_window_open_for_menu);
+                        reveal_main_window(&app_handle);
                     }
                     "autostart_toggle" => {
                         use tauri_plugin_autostart::ManagerExt;
@@ -214,46 +249,17 @@ pub fn run() {
                     _ => {}
                 });
 
-            let main_window_open_for_icon = Arc::clone(&main_window_open);
-            let focus_out_generation_for_icon = Arc::clone(&focus_out_generation);
-            let tray_click_open_at_down_for_icon = Arc::clone(&tray_click_open_at_down);
             let tray_builder = tray_builder.on_tray_icon_event(move |tray, event| {
                 if let TrayIconEvent::Click {
                     button: MouseButton::Left,
-                    button_state,
+                    button_state: MouseButtonState::Up,
                     rect,
                     ..
                 } = event
                 {
                     let app = tray.app_handle();
 
-                    match button_state {
-                        MouseButtonState::Down => {
-                            tray_click_open_at_down_for_icon.store(
-                                main_window_open_for_icon.load(Ordering::SeqCst),
-                                Ordering::SeqCst,
-                            );
-                            focus_out_generation_for_icon.fetch_add(1, Ordering::SeqCst);
-                        }
-                        MouseButtonState::Up => {
-                            focus_out_generation_for_icon.fetch_add(1, Ordering::SeqCst);
-                            if tray_click_open_at_down_for_icon.load(Ordering::SeqCst)
-                                || main_window_open_for_icon.load(Ordering::SeqCst)
-                            {
-                                hide_main_window(&app, &main_window_open_for_icon);
-                                tray_click_open_at_down_for_icon.store(false, Ordering::SeqCst);
-                            } else if let Some(window) = app.get_webview_window("main") {
-                                let pos = positioning::compute_window_position_for_tray_click(
-                                    &app,
-                                    &window,
-                                    rect.position,
-                                );
-                                let _ = window.set_position(pos);
-
-                                reveal_main_window(&app, &main_window_open_for_icon);
-                            }
-                        }
-                    }
+                    toggle_main_window_for_tray_click(&app, rect.position);
                 }
             });
 
@@ -280,44 +286,119 @@ pub fn run() {
 
             // Keep main window hidden until tray click (config also sets visible: false)
             if let Some(window) = app.get_webview_window("main") {
-                // Hide on focus out
-                let window_for_event = window.clone();
-                let app_handle_for_event = app.handle().clone();
-                let main_window_open_for_event = Arc::clone(&main_window_open);
-                let focus_out_generation_for_event = Arc::clone(&focus_out_generation);
                 window.on_window_event(move |event| {
                     match event {
-                        WindowEvent::Focused(true) => {
-                            main_window_open_for_event.store(true, Ordering::SeqCst);
-                        }
-                        WindowEvent::Focused(false) => {
-                            if crate::settings::should_hide_ui_on_focus_out_handle(&app_handle_for_event) {
-                                let generation =
-                                    focus_out_generation_for_event.fetch_add(1, Ordering::SeqCst) + 1;
-                                let window_for_hide = window_for_event.clone();
-                                let main_window_open_for_hide = Arc::clone(&main_window_open_for_event);
-                                let focus_out_generation_for_hide =
-                                    Arc::clone(&focus_out_generation_for_event);
-                                tauri::async_runtime::spawn_blocking(move || {
-                                    std::thread::sleep(Duration::from_millis(300));
-                                    if focus_out_generation_for_hide.load(Ordering::SeqCst) == generation
-                                        && main_window_open_for_hide.load(Ordering::SeqCst)
-                                    {
-                                        let _ = window_for_hide.hide();
-                                        main_window_open_for_hide.store(false, Ordering::SeqCst);
-                                    }
-                                });
-                            }
-                        }
                         WindowEvent::Destroyed => {
-                            main_window_open_for_event.store(false, Ordering::SeqCst);
+                            MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
                         }
                         _ => {}
                     }
                 });
                 // Ensure the window does not appear in the taskbar
                 let _ = window.set_skip_taskbar(true);
-                let _ = window.hide();
+                let _ = window.set_ignore_cursor_events(true);
+                let _ = window.set_position(Position::Physical(PARKED_WINDOW_POSITION));
+                let _ = window.show();
+                MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
+
+                if std::env::var_os("WINDISPLAY_SMOKE").is_some() {
+                    let window_for_smoke = window.clone();
+                    let app_for_smoke = app.handle().clone();
+                    tauri::async_runtime::spawn_blocking(move || {
+                        let started = std::time::Instant::now();
+                        let mut marks: Vec<String> = Vec::new();
+                        let mut mark = |name: &str| {
+                            marks.push(format!(
+                                "{name}:{}",
+                                started.elapsed().as_millis()
+                            ));
+                            write_smoke_report(format!("SMOKE {}", marks.join("|")));
+                        };
+
+                        park_main_window(&app_for_smoke);
+                        mark("native-start");
+                        let smoke_tray_position = Position::Physical(PhysicalPosition { x: 260, y: 260 });
+                        toggle_main_window_for_tray_click(&app_for_smoke, smoke_tray_position);
+                        mark(if MAIN_WINDOW_OPEN.load(Ordering::SeqCst) {
+                            "native-first-open"
+                        } else {
+                            "native-first-closed"
+                        });
+                        toggle_main_window_for_tray_click(&app_for_smoke, smoke_tray_position);
+                        mark(if MAIN_WINDOW_OPEN.load(Ordering::SeqCst) {
+                            "native-second-open"
+                        } else {
+                            "native-second-closed"
+                        });
+                        toggle_main_window_for_tray_click(&app_for_smoke, smoke_tray_position);
+                        mark(if MAIN_WINDOW_OPEN.load(Ordering::SeqCst) {
+                            "native-third-open"
+                        } else {
+                            "native-third-closed"
+                        });
+                        let _ = window_for_smoke.set_position(Position::Physical(PhysicalPosition { x: 260, y: 260 }));
+                        std::thread::sleep(std::time::Duration::from_millis(2500));
+                        let _ = window_for_smoke.eval(
+                            r#"
+                            (() => {
+                              const started = performance.now();
+                              const marks = [];
+                              const report = (message) => {
+                                document.body.dataset.smoke = message;
+                                window.__TAURI_INTERNALS__?.invoke('smoke_report', { message }).catch(() => {});
+                              };
+                              const mark = (name) => {
+                                const value = Math.round(performance.now() - started);
+                                marks.push(`${name}:${value}`);
+                                report(`SMOKE ${marks.join('|')}`);
+                              };
+                              const waitFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+                              const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+                              const waitFor = async (predicate, timeoutMs = 5000) => {
+                                const deadline = performance.now() + timeoutMs;
+                                while (performance.now() < deadline) {
+                                  const value = predicate();
+                                  if (value) return value;
+                                  await wait(50);
+                                }
+                                return predicate();
+                              };
+
+                              (async () => {
+                                mark('start');
+                                const settingsButton = await waitFor(() => {
+                                  const button = document.querySelector('[aria-label="Open settings"]');
+                                  return button && !button.disabled ? button : null;
+                                });
+                                if (!settingsButton) {
+                                  mark(document.querySelector('[aria-label="Open settings"]') ? 'settings-button-disabled' : 'no-settings-button');
+                                  return;
+                                }
+                                mark('button-ready');
+                                settingsButton.click();
+                                mark('open-click');
+                                await waitFrame();
+                                mark(document.querySelector('.settings-dialog') ? 'open-dialog-raf' : 'open-no-dialog-raf');
+                                await wait(100);
+                                mark(document.querySelector('.settings-dialog') ? 'open-dialog-100' : 'open-no-dialog-100');
+
+                                const overlay = document.querySelector('.dialog-overlay');
+                                if (!overlay) {
+                                  mark('no-overlay');
+                                  return;
+                                }
+                                overlay.click();
+                                mark('close-click');
+                                await waitFrame();
+                                mark(document.querySelector('.settings-dialog') ? 'close-dialog-raf' : 'close-no-dialog-raf');
+                                await wait(100);
+                                mark(document.querySelector('.settings-dialog') ? 'close-dialog-100' : 'close-no-dialog-100');
+                              })();
+                            })();
+                            "#,
+                        );
+                    });
+                }
             }
             Ok(())
         })

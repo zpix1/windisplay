@@ -1,4 +1,5 @@
 import { BrightnessSlider } from "./BrightnessSlider";
+import { memo } from "react";
 import { ResolutionSlider } from "./ResolutionSlider";
 import { RefreshRateSlider } from "./RefreshRateSlider";
 import { aspectKey, DisplayInfo } from "../lib/Resolutions";
@@ -14,7 +15,7 @@ type MonitorControlsProps = {
   onError?: (msg: string) => void;
 };
 
-export default function MonitorControls({
+function MonitorControls({
   monitor,
   disabled = false,
   onError,
@@ -78,3 +79,5 @@ export default function MonitorControls({
     </>
   );
 }
+
+export default memo(MonitorControls);

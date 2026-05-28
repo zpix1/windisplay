@@ -4,7 +4,6 @@ import { listen } from "@tauri-apps/api/event";
 import { useThrottle } from "../hooks/useDebouncedCallback";
 import { Slider } from "./ui/Slider/Slider";
 import { BrightnessIcon } from "./ui/icons/BrightnessIcon";
-import { useMonitorsContext } from "../context/MonitorsContext";
 
 type Props = {
   deviceName: string | null;
@@ -20,7 +19,6 @@ export function BrightnessSlider({
   onError,
 }: Props) {
   const [pct, setPct] = useState<number | null>(null);
-  const { monitors } = useMonitorsContext();
 
   const fetchBrightness = useCallback(async () => {
     if (!deviceName) {
@@ -52,7 +50,7 @@ export function BrightnessSlider({
     return () => {
       cancelled = true;
     };
-  }, [fetchBrightness, monitors]);
+  }, [fetchBrightness]);
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;

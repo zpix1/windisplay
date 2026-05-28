@@ -1,5 +1,4 @@
-import { debug } from "@tauri-apps/plugin-log";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import "./App.css";
 import IdentifyMonitorsButton from "./components/IdentifyMonitorsButton";
 import MonitorControls from "./components/MonitorControls";
@@ -24,7 +23,7 @@ function getSystemTheme(): "light" | "dark" {
 
 function App() {
   const { monitors, loading, error, setError } = useMonitorsContext();
-  const { settings, loading: settingsLoading } = useSettings();
+  const { settings } = useSettings();
   const [selectedDeviceName, setSelectedDeviceName] = useState<string | null>(
     null
   );
@@ -32,28 +31,15 @@ function App() {
 
   // Keep selection valid when monitors list changes
   useEffect(() => {
-    debug(
-      `monitors ${JSON.stringify(
-        monitors.map((e) => ({
-          ...e,
-          modes: e.modes.length,
-          scales: e.scales.length,
-        })),
-        null,
-        2
-      )}`
-    );
-    if (monitors.length === 0) {
-      setSelectedDeviceName(null);
-      return;
-    }
-    const stillExists = monitors.some(
-      (m) => m.device_name === selectedDeviceName
-    );
-    if (!stillExists) {
-      setSelectedDeviceName(monitors[0].device_name);
-    }
-  }, [monitors, selectedDeviceName]);
+    setSelectedDeviceName((current) => {
+      if (monitors.length === 0) {
+        return null;
+      }
+
+      const stillExists = monitors.some((m) => m.device_name === current);
+      return stillExists ? current : monitors[0].device_name;
+    });
+  }, [monitors]);
 
   const selectedMonitor = useMemo(
     () => monitors.find((m) => m.device_name === selectedDeviceName) ?? null,
@@ -79,6 +65,25 @@ function App() {
     return () => media.removeEventListener("change", handleChange);
   }, [settings.theme]);
 
+  const handleMonitorChange = useCallback((deviceName: string) => {
+    setSelectedDeviceName(deviceName);
+  }, []);
+
+  const handleOpenSettings = useCallback(() => {
+    setIsSettingsOpen(true);
+  }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    setIsSettingsOpen(false);
+  }, []);
+
+  const handleError = useCallback(
+    (msg: string) => {
+      setError(msg);
+    },
+    [setError]
+  );
+
   return (
     <div className="app-root">
       {error && <ErrorToast message={error} onClose={() => setError(null)} />}
@@ -96,16 +101,15 @@ function App() {
               ariaLabel="Select monitor"
               items={monitors}
               selectedItem={selectedMonitor}
-              onChange={(m) => setSelectedDeviceName(m.device_name)}
+              onChange={(m) => handleMonitorChange(m.device_name)}
               getKey={(m) => m.device_name}
               getLabel={(m) => monitors.indexOf(m) + 1}
               disabled={loading}
             />
             <button
               className="cog-button"
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={handleOpenSettings}
               aria-label="Open settings"
-              disabled={loading || settingsLoading}
             >
               <CogIcon size={20} />
             </button>
@@ -114,9 +118,8 @@ function App() {
           <div className="monitor-selector-container single-button">
             <button
               className="cog-button standalone"
-              onClick={() => setIsSettingsOpen(true)}
+              onClick={handleOpenSettings}
               aria-label="Open settings"
-              disabled={loading || settingsLoading}
             >
               <CogIcon size={20} />
             </button>
@@ -141,7 +144,7 @@ function App() {
               <MonitorControls
                 monitor={selectedMonitor}
                 disabled={loading}
-                onError={(msg) => setError(msg)}
+                onError={handleError}
               />
             </div>
           </>
@@ -154,7 +157,7 @@ function App() {
 
       <Settings
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={handleCloseSettings}
       />
     </div>
   );

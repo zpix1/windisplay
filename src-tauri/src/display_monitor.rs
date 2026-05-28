@@ -1,7 +1,7 @@
 #[cfg(target_os = "windows")]
 use std::sync::Mutex;
 #[cfg(target_os = "windows")]
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 #[cfg(target_os = "windows")]
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
@@ -30,11 +30,7 @@ unsafe extern "system" fn window_proc(
                     let _ = app.emit("display-changed", ());
                     // Optionally reveal UI if user enabled it in settings
                     if crate::settings::should_show_ui_on_monitor_change_handle(app) {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.unminimize();
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
+                        crate::reveal_main_window(app);
                     }
                 }
             }

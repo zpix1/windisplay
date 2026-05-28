@@ -150,6 +150,29 @@ where
     Ok(opt.unwrap_or_default())
 }
 
+fn cached_edid_metadata() -> &'static Mutex<Option<(std::time::Instant, Vec<PsEdidEntry>)>> {
+    static CACHE: OnceLock<Mutex<Option<(std::time::Instant, Vec<PsEdidEntry>)>>> =
+        OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(None))
+}
+
+fn get_cached_edid_metadata() -> Option<Vec<PsEdidEntry>> {
+    const TTL: std::time::Duration = std::time::Duration::from_secs(10);
+    cached_edid_metadata()
+        .lock()
+        .ok()
+        .and_then(|cache| match cache.as_ref() {
+            Some((cached_at, entries)) if cached_at.elapsed() < TTL => Some(entries.clone()),
+            _ => None,
+        })
+}
+
+fn cache_edid_metadata(entries: &[PsEdidEntry]) {
+    if let Ok(mut cache) = cached_edid_metadata().lock() {
+        *cache = Some((std::time::Instant::now(), entries.to_vec()));
+    }
+}
+
 fn to_lower(s: &str) -> String {
     s.to_ascii_lowercase()
 }
@@ -238,6 +261,11 @@ fn run_powershell_hidden(script: &str) -> Option<String> {
 }
 
 fn fetch_edid_metadata_via_powershell() -> Vec<PsEdidEntry> {
+    if let Some(entries) = get_cached_edid_metadata() {
+        log::debug!("Using cached EDID metadata: count={}", entries.len());
+        return entries;
+    }
+
     // PowerShell script adapted from test.py to gather EDID metadata
     let script = r#"
 $toStr = {
@@ -279,10 +307,12 @@ if ($results) { $results | ConvertTo-Json -Depth 4 } else { '[]' }
 "#;
 
     let Some(raw) = run_powershell_hidden(script) else {
-        return Vec::new();
+        let entries = Vec::new();
+        cache_edid_metadata(&entries);
+        return entries;
     };
     // Parse JSON, tolerate either array or single object
-    match serde_json::from_str::<Value>(&raw) {
+    let entries = match serde_json::from_str::<Value>(&raw) {
         Ok(Value::Array(arr)) => arr
             .into_iter()
             .filter_map(|v| serde_json::from_value::<PsEdidEntry>(v).ok())
@@ -291,7 +321,9 @@ if ($results) { $results | ConvertTo-Json -Depth 4 } else { '[]' }
             .map(|e| vec![e])
             .unwrap_or_default(),
         _ => Vec::new(),
-    }
+    };
+    cache_edid_metadata(&entries);
+    entries
 }
 
 fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
@@ -311,7 +343,7 @@ fn get_all_monitors_windows() -> Result<Vec<DisplayInfo>, String> {
     let mut logical_display_index: usize = 0;
 
     // Fetch EDID metadata from PowerShell once; if it fails, we proceed with defaults
-    let mut edid_entries: Vec<PsEdidEntry> = fetch_edid_metadata_via_powershell();
+    let edid_entries: Vec<PsEdidEntry> = fetch_edid_metadata_via_powershell();
     log::debug!(
         "EDID entries fetched via PowerShell: count={}",
         edid_entries.len()
@@ -1187,9 +1219,42 @@ fn get_monitor_ddc_caps_windows(device_name: String) -> Result<String, String> {
     })
 }
 
+fn input_switch_support_cache() -> &'static Mutex<
+    HashMap<String, (std::time::Instant, Result<bool, String>)>,
+> {
+    static CACHE: OnceLock<Mutex<HashMap<String, (std::time::Instant, Result<bool, String>)>>> =
+        OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn get_cached_input_switch_support(device_name: &str) -> Option<Result<bool, String>> {
+    const TTL: std::time::Duration = std::time::Duration::from_secs(60);
+    input_switch_support_cache()
+        .lock()
+        .ok()
+        .and_then(|cache| match cache.get(device_name) {
+            Some((cached_at, value)) if cached_at.elapsed() < TTL => Some(value.clone()),
+            _ => None,
+        })
+}
+
+fn cache_input_switch_support(device_name: &str, value: &Result<bool, String>) {
+    if let Ok(mut cache) = input_switch_support_cache().lock() {
+        cache.insert(
+            device_name.to_string(),
+            (std::time::Instant::now(), value.clone()),
+        );
+    }
+}
+
 fn has_vcp_60_windows(device_name: String) -> Result<bool, String> {
+    if let Some(cached) = get_cached_input_switch_support(&device_name) {
+        log::debug!("Using cached input-switch support for '{}'", device_name);
+        return cached;
+    }
+
     use windows::Win32::Devices::Display::{GetVCPFeatureAndVCPFeatureReply, MC_VCP_CODE_TYPE};
-    with_first_physical_monitor(&device_name, |pm| {
+    let result = with_first_physical_monitor(&device_name, |pm| {
         let mut feature_type: MC_VCP_CODE_TYPE = MC_VCP_CODE_TYPE(0);
         let mut current_value: u32 = 0;
         let mut max_value: u32 = 0;
@@ -1212,7 +1277,9 @@ fn has_vcp_60_windows(device_name: String) -> Result<bool, String> {
             return Ok(false);
         }
         Ok(true)
-    })
+    });
+    cache_input_switch_support(&device_name, &result);
+    result
 }
 
 /// Get monitor power status via DDC/CI VCP code 0xD6 (DPMS / Power Mode)

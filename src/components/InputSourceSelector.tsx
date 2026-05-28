@@ -35,6 +35,11 @@ export function InputSourceSelector({
 
   // Fetch current active input to highlight the item
   useEffect(() => {
+    if (disabled) {
+      setSelectedLabel("Select input");
+      return;
+    }
+
     let mounted = true;
     (async () => {
       try {
@@ -64,7 +69,7 @@ export function InputSourceSelector({
     return () => {
       mounted = false;
     };
-  }, [deviceName]);
+  }, [deviceName, disabled]);
 
   // Resolve icon for a given label
   const iconForLabel = (label: string) => {

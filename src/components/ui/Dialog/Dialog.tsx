@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, ReactNode } from "react";
+import { useEffect, ReactNode } from "react";
 import "./Dialog.css";
 
 type DialogProps = {
@@ -14,34 +14,8 @@ export function Dialog({
   children,
   className = "",
 }: DialogProps) {
-  const [isMounted, setIsMounted] = useState<boolean>(false);
-  const [isClosing, setIsClosing] = useState<boolean>(false);
-  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearCloseTimeout = useCallback(() => {
-    if (closeTimeoutRef.current !== null) {
-      clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-  }, []);
-
   useEffect(() => {
-    if (isOpen && !isMounted) {
-      clearCloseTimeout();
-      setIsMounted(true);
-      setIsClosing(false);
-    } else if (!isOpen && isMounted && !isClosing) {
-      setIsClosing(true);
-      closeTimeoutRef.current = setTimeout(() => {
-        setIsMounted(false);
-        setIsClosing(false);
-        closeTimeoutRef.current = null;
-      }, 200);
-    }
-  }, [isOpen, isMounted, isClosing, clearCloseTimeout]);
-
-  useEffect(() => {
-    if (!isMounted) {
+    if (!isOpen) {
       return;
     }
     const handleEscape = (e: KeyboardEvent) => {
@@ -53,29 +27,21 @@ export function Dialog({
       document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = "";
     };
-  }, [isMounted, onClose]);
+  }, [isOpen, onClose]);
 
-  useEffect(() => {
-    return () => {
-      clearCloseTimeout();
-    };
-  }, [clearCloseTimeout]);
-
-  if (!isMounted) {
+  if (!isOpen) {
     return null;
   }
 
   return (
     <>
       <div
-        className={`dialog-overlay${isClosing ? " closing" : ""}`}
+        className="dialog-overlay"
         onClick={onClose}
       />
       <div
         role="dialog"
-        className={`dialog-content${isClosing ? " closing" : ""}${
-          className ? " " + className : ""
-        }`}
+        className={`dialog-content${className ? " " + className : ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         {children}
