@@ -9,6 +9,7 @@ type Props = {
   deviceName: string | null;
   requiresWmi?: boolean;
   disabled?: boolean;
+  disabledReason?: string;
   onError?: (msg: string) => void;
 };
 
@@ -16,6 +17,7 @@ export function BrightnessSlider({
   deviceName,
   requiresWmi,
   disabled,
+  disabledReason,
   onError,
 }: Props) {
   const [pct, setPct] = useState<number | null>(null);
@@ -78,8 +80,10 @@ export function BrightnessSlider({
 
   const throttledApply = useThrottle(apply, requiresWmi ? 500 : 100);
 
+  const title = disabled && disabledReason ? disabledReason : undefined;
+
   return (
-    <div className="field">
+    <div className="field" title={title}>
       <label className="label" htmlFor="brightness-range">
         Brightness
       </label>
@@ -89,6 +93,7 @@ export function BrightnessSlider({
         max={100}
         step={1}
         disabled={disabled || pct === null}
+        title={title}
         value={pct ?? 0}
         onChange={(next) => {
           setPct(next);

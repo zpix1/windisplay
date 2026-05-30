@@ -1,4 +1,5 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::time::Duration;
 use tauri::{Manager, PhysicalPosition, Position, WindowEvent};
 
 mod cli;
@@ -14,8 +15,12 @@ mod winDisplays;
 pub mod winHdr;
 
 const AUTOSTART_BASE_LABEL: &str = "Start at login";
-const PARKED_WINDOW_POSITION: PhysicalPosition<i32> = PhysicalPosition { x: -32000, y: -32000 };
+const PARKED_WINDOW_POSITION: PhysicalPosition<i32> = PhysicalPosition {
+    x: -32000,
+    y: -32000,
+};
 static MAIN_WINDOW_OPEN: AtomicBool = AtomicBool::new(false);
+static FOCUS_OUT_TOKEN: AtomicU64 = AtomicU64::new(0);
 
 fn autostart_label(enabled: bool) -> String {
     if enabled {
@@ -27,6 +32,19 @@ fn autostart_label(enabled: bool) -> String {
 
 pub(crate) fn reveal_main_window(app_handle: &tauri::AppHandle) -> bool {
     if let Some(window) = app_handle.get_webview_window("main") {
+        FOCUS_OUT_TOKEN.fetch_add(1, Ordering::SeqCst);
+        let should_reposition = window
+            .outer_position()
+            .map(|position| {
+                position == PARKED_WINDOW_POSITION
+                    || !positioning::is_position_on_any_monitor(app_handle, position)
+            })
+            .unwrap_or(true);
+        if should_reposition {
+            let _ = window.set_position(positioning::compute_default_window_position(
+                app_handle, &window,
+            ));
+        }
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_ignore_cursor_events(false);
@@ -40,6 +58,7 @@ pub(crate) fn reveal_main_window(app_handle: &tauri::AppHandle) -> bool {
 
 fn park_main_window(app_handle: &tauri::AppHandle) -> bool {
     if let Some(window) = app_handle.get_webview_window("main") {
+        FOCUS_OUT_TOKEN.fetch_add(1, Ordering::SeqCst);
         let _ = window.set_ignore_cursor_events(true);
         let _ = window.set_position(Position::Physical(PARKED_WINDOW_POSITION));
         MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
@@ -56,34 +75,13 @@ fn toggle_main_window_for_tray_click(
     if MAIN_WINDOW_OPEN.load(Ordering::SeqCst) {
         park_main_window(app_handle)
     } else if let Some(window) = app_handle.get_webview_window("main") {
-        let pos = positioning::compute_window_position_for_tray_click(
-            app_handle,
-            &window,
-            tray_position,
-        );
+        let pos =
+            positioning::compute_window_position_for_tray_click(app_handle, &window, tray_position);
         let _ = window.set_position(pos);
         reveal_main_window(app_handle)
     } else {
         false
     }
-}
-
-fn write_smoke_report(message: String) {
-    if let Some(path) = std::env::var_os("WINDISPLAY_SMOKE_OUT") {
-        use std::io::Write;
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-        {
-            let _ = writeln!(file, "{message}");
-        }
-    }
-}
-
-#[tauri::command]
-fn smoke_report(message: String) {
-    write_smoke_report(message);
 }
 
 pub fn run() {
@@ -131,7 +129,6 @@ pub fn run() {
             displays::get_monitor_input_source,
             displays::get_monitor_ddc_caps,
             displays::set_monitor_power,
-            smoke_report,
         ])
         .setup(|app| {
             // Log settings file location
@@ -286,8 +283,30 @@ pub fn run() {
 
             // Keep main window hidden until tray click (config also sets visible: false)
             if let Some(window) = app.get_webview_window("main") {
+                let app_handle_for_event = app.handle().clone();
                 window.on_window_event(move |event| {
                     match event {
+                        WindowEvent::Focused(true) => {
+                            FOCUS_OUT_TOKEN.fetch_add(1, Ordering::SeqCst);
+                        }
+                        WindowEvent::Focused(false) => {
+                            if !crate::settings::should_hide_ui_on_focus_out_handle(
+                                &app_handle_for_event,
+                            ) {
+                                return;
+                            }
+
+                            let token = FOCUS_OUT_TOKEN.fetch_add(1, Ordering::SeqCst) + 1;
+                            let app_handle = app_handle_for_event.clone();
+                            tauri::async_runtime::spawn(async move {
+                                std::thread::sleep(Duration::from_millis(300));
+                                if FOCUS_OUT_TOKEN.load(Ordering::SeqCst) == token
+                                    && MAIN_WINDOW_OPEN.load(Ordering::SeqCst)
+                                {
+                                    park_main_window(&app_handle);
+                                }
+                            });
+                        }
                         WindowEvent::Destroyed => {
                             MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
                         }
@@ -300,105 +319,6 @@ pub fn run() {
                 let _ = window.set_position(Position::Physical(PARKED_WINDOW_POSITION));
                 let _ = window.show();
                 MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
-
-                if std::env::var_os("WINDISPLAY_SMOKE").is_some() {
-                    let window_for_smoke = window.clone();
-                    let app_for_smoke = app.handle().clone();
-                    tauri::async_runtime::spawn_blocking(move || {
-                        let started = std::time::Instant::now();
-                        let mut marks: Vec<String> = Vec::new();
-                        let mut mark = |name: &str| {
-                            marks.push(format!(
-                                "{name}:{}",
-                                started.elapsed().as_millis()
-                            ));
-                            write_smoke_report(format!("SMOKE {}", marks.join("|")));
-                        };
-
-                        park_main_window(&app_for_smoke);
-                        mark("native-start");
-                        let smoke_tray_position = Position::Physical(PhysicalPosition { x: 260, y: 260 });
-                        toggle_main_window_for_tray_click(&app_for_smoke, smoke_tray_position);
-                        mark(if MAIN_WINDOW_OPEN.load(Ordering::SeqCst) {
-                            "native-first-open"
-                        } else {
-                            "native-first-closed"
-                        });
-                        toggle_main_window_for_tray_click(&app_for_smoke, smoke_tray_position);
-                        mark(if MAIN_WINDOW_OPEN.load(Ordering::SeqCst) {
-                            "native-second-open"
-                        } else {
-                            "native-second-closed"
-                        });
-                        toggle_main_window_for_tray_click(&app_for_smoke, smoke_tray_position);
-                        mark(if MAIN_WINDOW_OPEN.load(Ordering::SeqCst) {
-                            "native-third-open"
-                        } else {
-                            "native-third-closed"
-                        });
-                        let _ = window_for_smoke.set_position(Position::Physical(PhysicalPosition { x: 260, y: 260 }));
-                        std::thread::sleep(std::time::Duration::from_millis(2500));
-                        let _ = window_for_smoke.eval(
-                            r#"
-                            (() => {
-                              const started = performance.now();
-                              const marks = [];
-                              const report = (message) => {
-                                document.body.dataset.smoke = message;
-                                window.__TAURI_INTERNALS__?.invoke('smoke_report', { message }).catch(() => {});
-                              };
-                              const mark = (name) => {
-                                const value = Math.round(performance.now() - started);
-                                marks.push(`${name}:${value}`);
-                                report(`SMOKE ${marks.join('|')}`);
-                              };
-                              const waitFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
-                              const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-                              const waitFor = async (predicate, timeoutMs = 5000) => {
-                                const deadline = performance.now() + timeoutMs;
-                                while (performance.now() < deadline) {
-                                  const value = predicate();
-                                  if (value) return value;
-                                  await wait(50);
-                                }
-                                return predicate();
-                              };
-
-                              (async () => {
-                                mark('start');
-                                const settingsButton = await waitFor(() => {
-                                  const button = document.querySelector('[aria-label="Open settings"]');
-                                  return button && !button.disabled ? button : null;
-                                });
-                                if (!settingsButton) {
-                                  mark(document.querySelector('[aria-label="Open settings"]') ? 'settings-button-disabled' : 'no-settings-button');
-                                  return;
-                                }
-                                mark('button-ready');
-                                settingsButton.click();
-                                mark('open-click');
-                                await waitFrame();
-                                mark(document.querySelector('.settings-dialog') ? 'open-dialog-raf' : 'open-no-dialog-raf');
-                                await wait(100);
-                                mark(document.querySelector('.settings-dialog') ? 'open-dialog-100' : 'open-no-dialog-100');
-
-                                const overlay = document.querySelector('.dialog-overlay');
-                                if (!overlay) {
-                                  mark('no-overlay');
-                                  return;
-                                }
-                                overlay.click();
-                                mark('close-click');
-                                await waitFrame();
-                                mark(document.querySelector('.settings-dialog') ? 'close-dialog-raf' : 'close-no-dialog-raf');
-                                await wait(100);
-                                mark(document.querySelector('.settings-dialog') ? 'close-dialog-100' : 'close-no-dialog-100');
-                              })();
-                            })();
-                            "#,
-                        );
-                    });
-                }
             }
             Ok(())
         })

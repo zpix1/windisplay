@@ -26,6 +26,11 @@ function MonitorControls({
         deviceName={monitor.device_name}
         requiresWmi={monitor.built_in}
         disabled={disabled || monitor.hdr_status === "on"}
+        disabledReason={
+          monitor.hdr_status === "on"
+            ? "Brightness can't be adjusted when HDR is on"
+            : undefined
+        }
         onError={onError}
       />
 

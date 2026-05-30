@@ -39,6 +39,10 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     updateSettings({ showUIOnMonitorChange: checked });
   };
 
+  const handleFocusOutCheckboxChange = (checked: boolean) => {
+    updateSettings({ shouldHideUIOnFocusOut: checked });
+  };
+
   const handleRadioChange = (value: KeyboardBrightnessShortcut) => {
     updateSettings({ keyboardBrightnessShortcut: value });
   };
@@ -160,6 +164,21 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                 <span className="settings-checkbox-text">
                   Automatically show UI when a monitor is connected or
                   disconnected
+                </span>
+              </label>
+            </div>
+            <div className="settings-section">
+              <label className="settings-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={settings.shouldHideUIOnFocusOut}
+                  onChange={(e) =>
+                    handleFocusOutCheckboxChange(e.target.checked)
+                  }
+                  className="settings-checkbox"
+                />
+                <span className="settings-checkbox-text">
+                  Hide controls when focus is lost
                 </span>
               </label>
             </div>

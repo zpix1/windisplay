@@ -1,6 +1,6 @@
 [package]
 name = "WinDisplay"
-version = "0.3.20"
+version = "0.3.21"
 description = "Like BetterDisplay, but for Windows. Change resolution and refresh rate of your monitors from your system tray."
 authors = ["zpix1"]
 edition = "2021"
@@ -52,4 +52,3 @@ fake-displays = []
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
-

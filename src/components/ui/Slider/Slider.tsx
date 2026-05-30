@@ -14,6 +14,7 @@ type Props = {
   icon?: ReactNode;
   label?: string;
   stickyPoints?: number[];
+  title?: string;
 };
 
 export function Slider({
@@ -29,11 +30,20 @@ export function Slider({
   icon,
   label,
   stickyPoints,
+  title,
 }: Props) {
   const sliderRef = useRef<HTMLInputElement>(null);
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [pendingValue, setPendingValue] = useState<number | null>(null);
   const [displayValue, setDisplayValue] = useState(value);
+  const animationFrameRef = useRef<number | null>(null);
+
+  const cancelAnimation = () => {
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+  };
 
   const clamp = (v: number) => {
     if (Number.isNaN(v)) return min;
@@ -69,13 +79,59 @@ export function Slider({
     return min + (nearestPoint / 100) * (max - min);
   };
 
-  // Apply external value changes immediately. These changes commonly happen while
-  // switching monitors, where animation makes the UI feel like it is still loading.
+  const prefersReducedMotion = () => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  };
+
+  // Animate external value changes (e.g. switching monitors) so thumb + fill move together.
   useEffect(() => {
+    const target = clamp(value);
+
     if (isMouseDown) {
+      cancelAnimation();
+      setDisplayValue(target);
       return;
     }
-    setDisplayValue(clamp(value));
+
+    if (prefersReducedMotion()) {
+      cancelAnimation();
+      setDisplayValue(target);
+      return;
+    }
+
+    if (Math.abs(target - displayValue) < 1e-6) {
+      return;
+    }
+
+    cancelAnimation();
+
+    const from = displayValue;
+    const to = target;
+    const durationMs = 180;
+    const start = performance.now();
+
+    const easeInOutCubic = (t: number) =>
+      t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    const stepFrame = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = easeInOutCubic(t);
+      setDisplayValue(from + (to - from) * eased);
+
+      if (t < 1) {
+        animationFrameRef.current = window.requestAnimationFrame(stepFrame);
+      } else {
+        animationFrameRef.current = null;
+        setDisplayValue(to);
+      }
+    };
+
+    animationFrameRef.current = window.requestAnimationFrame(stepFrame);
+
+    return () => {
+      cancelAnimation();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, min, max, isMouseDown]);
 
@@ -116,10 +172,11 @@ export function Slider({
   }, [isMouseDown, pendingValue, onValueSubmit]);
 
   return (
-    <div className="slider-container">
+    <div className="slider-container" title={title}>
       <input
         ref={sliderRef}
         id={id}
+        title={title}
         className={`slider ${className}`}
         type="range"
         min={min}
@@ -131,6 +188,7 @@ export function Slider({
           if (onChange) {
             const rawValue = Number(e.target.value);
             const finalValue = findNearestStickyPoint(rawValue);
+            cancelAnimation();
             setDisplayValue(finalValue);
             onChange(finalValue);
 
@@ -141,12 +199,14 @@ export function Slider({
           }
         }}
         onMouseDown={() => {
+          cancelAnimation();
           setIsMouseDown(true);
         }}
         onMouseUp={() => {
           setIsMouseDown(false);
         }}
         onTouchStart={() => {
+          cancelAnimation();
           setIsMouseDown(true);
         }}
         onTouchEnd={() => {
