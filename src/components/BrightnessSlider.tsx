@@ -4,12 +4,12 @@ import { listen } from "@tauri-apps/api/event";
 import { useThrottle } from "../hooks/useDebouncedCallback";
 import { Slider } from "./ui/Slider/Slider";
 import { BrightnessIcon } from "./ui/icons/BrightnessIcon";
-import { useMonitorsContext } from "../context/MonitorsContext";
 
 type Props = {
   deviceName: string | null;
   requiresWmi?: boolean;
   disabled?: boolean;
+  disabledReason?: string;
   onError?: (msg: string) => void;
 };
 
@@ -17,10 +17,10 @@ export function BrightnessSlider({
   deviceName,
   requiresWmi,
   disabled,
+  disabledReason,
   onError,
 }: Props) {
   const [pct, setPct] = useState<number | null>(null);
-  const { monitors } = useMonitorsContext();
 
   const fetchBrightness = useCallback(async () => {
     if (!deviceName) {
@@ -52,7 +52,7 @@ export function BrightnessSlider({
     return () => {
       cancelled = true;
     };
-  }, [fetchBrightness, monitors]);
+  }, [fetchBrightness]);
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -80,8 +80,10 @@ export function BrightnessSlider({
 
   const throttledApply = useThrottle(apply, requiresWmi ? 500 : 100);
 
+  const title = disabled && disabledReason ? disabledReason : undefined;
+
   return (
-    <div className="field">
+    <div className="field" title={title}>
       <label className="label" htmlFor="brightness-range">
         Brightness
       </label>
@@ -91,6 +93,7 @@ export function BrightnessSlider({
         max={100}
         step={1}
         disabled={disabled || pct === null}
+        title={title}
         value={pct ?? 0}
         onChange={(next) => {
           setPct(next);

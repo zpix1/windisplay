@@ -1,4 +1,5 @@
 import { BrightnessSlider } from "./BrightnessSlider";
+import { memo } from "react";
 import { ResolutionSlider } from "./ResolutionSlider";
 import { RefreshRateSlider } from "./RefreshRateSlider";
 import { aspectKey, DisplayInfo } from "../lib/Resolutions";
@@ -14,7 +15,7 @@ type MonitorControlsProps = {
   onError?: (msg: string) => void;
 };
 
-export default function MonitorControls({
+function MonitorControls({
   monitor,
   disabled = false,
   onError,
@@ -24,7 +25,12 @@ export default function MonitorControls({
       <BrightnessSlider
         deviceName={monitor.device_name}
         requiresWmi={monitor.built_in}
-        disabled={disabled}
+        disabled={disabled || monitor.hdr_status === "on"}
+        disabledReason={
+          monitor.hdr_status === "on"
+            ? "Brightness can't be adjusted when HDR is on"
+            : undefined
+        }
         onError={onError}
       />
 
@@ -78,3 +84,5 @@ export default function MonitorControls({
     </>
   );
 }
+
+export default memo(MonitorControls);

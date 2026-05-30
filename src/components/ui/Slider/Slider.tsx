@@ -14,6 +14,7 @@ type Props = {
   icon?: ReactNode;
   label?: string;
   stickyPoints?: number[];
+  title?: string;
 };
 
 export function Slider({
@@ -29,6 +30,7 @@ export function Slider({
   icon,
   label,
   stickyPoints,
+  title,
 }: Props) {
   const sliderRef = useRef<HTMLInputElement>(null);
   const [isMouseDown, setIsMouseDown] = useState(false);
@@ -46,11 +48,6 @@ export function Slider({
   const clamp = (v: number) => {
     if (Number.isNaN(v)) return min;
     return Math.min(max, Math.max(min, v));
-  };
-
-  const prefersReducedMotion = () => {
-    if (typeof window === "undefined" || !window.matchMedia) return false;
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   };
 
   // Helper function to find the nearest sticky point
@@ -80,6 +77,11 @@ export function Slider({
 
     // Convert back to original scale
     return min + (nearestPoint / 100) * (max - min);
+  };
+
+  const prefersReducedMotion = () => {
+    if (typeof window === "undefined" || !window.matchMedia) return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   };
 
   // Animate external value changes (e.g. switching monitors) so thumb + fill move together.
@@ -170,10 +172,11 @@ export function Slider({
   }, [isMouseDown, pendingValue, onValueSubmit]);
 
   return (
-    <div className="slider-container">
+    <div className="slider-container" title={title}>
       <input
         ref={sliderRef}
         id={id}
+        title={title}
         className={`slider ${className}`}
         type="range"
         min={min}

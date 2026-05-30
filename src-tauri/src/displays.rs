@@ -94,71 +94,87 @@ pub fn active_provider() -> Box<dyn Displays> {
     }
 }
 
+async fn run_display_task<T, F>(task: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(task)
+        .await
+        .map_err(|e| format!("Display task failed: {e}"))?
+}
+
 // Tauri commands delegate to the selected provider
 #[tauri::command]
-pub fn get_all_monitors() -> Result<Vec<DisplayInfo>, String> {
-    active_provider().get_all_monitors()
+pub async fn get_all_monitors() -> Result<Vec<DisplayInfo>, String> {
+    run_display_task(|| active_provider().get_all_monitors()).await
 }
 
 #[tauri::command]
-pub fn set_monitor_resolution(
+pub async fn set_monitor_resolution(
     device_name: String,
     width: u32,
     height: u32,
     refresh_hz: Option<u32>,
 ) -> Result<(), String> {
-    active_provider().set_monitor_resolution(device_name, width, height, refresh_hz)
+    run_display_task(move || {
+        active_provider().set_monitor_resolution(device_name, width, height, refresh_hz)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn set_monitor_orientation(
+pub async fn set_monitor_orientation(
     device_name: String,
     orientation_degrees: u32,
 ) -> Result<(), String> {
-    active_provider().set_monitor_orientation(device_name, orientation_degrees)
+    run_display_task(move || {
+        active_provider().set_monitor_orientation(device_name, orientation_degrees)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn get_monitor_brightness(device_name: String) -> Result<BrightnessInfo, String> {
-    active_provider().get_monitor_brightness(device_name)
+pub async fn get_monitor_brightness(device_name: String) -> Result<BrightnessInfo, String> {
+    run_display_task(move || active_provider().get_monitor_brightness(device_name)).await
 }
 
 #[tauri::command]
-pub fn set_monitor_brightness(device_name: String, percent: u32) -> Result<(), String> {
-    active_provider().set_monitor_brightness(device_name, percent)
+pub async fn set_monitor_brightness(device_name: String, percent: u32) -> Result<(), String> {
+    run_display_task(move || active_provider().set_monitor_brightness(device_name, percent)).await
 }
 
 #[tauri::command]
 pub async fn identify_monitors(app_handle: tauri::AppHandle) -> Result<(), String> {
-    active_provider().identify_monitors(app_handle)
+    run_display_task(move || active_provider().identify_monitors(app_handle)).await
 }
 
 #[tauri::command]
-pub fn set_monitor_scale(device_name: String, scale_percent: u32) -> Result<(), String> {
-    active_provider().set_monitor_scale(device_name, scale_percent)
+pub async fn set_monitor_scale(device_name: String, scale_percent: u32) -> Result<(), String> {
+    run_display_task(move || active_provider().set_monitor_scale(device_name, scale_percent)).await
 }
 
 #[tauri::command]
-pub fn enable_hdr(device_name: String, enable: bool) -> Result<(), String> {
-    active_provider().enable_hdr(device_name, enable)
+pub async fn enable_hdr(device_name: String, enable: bool) -> Result<(), String> {
+    run_display_task(move || active_provider().enable_hdr(device_name, enable)).await
 }
 
 #[tauri::command]
-pub fn set_monitor_input_source(device_name: String, input: String) -> Result<(), String> {
-    active_provider().set_monitor_input_source(device_name, input)
+pub async fn set_monitor_input_source(device_name: String, input: String) -> Result<(), String> {
+    run_display_task(move || active_provider().set_monitor_input_source(device_name, input)).await
 }
 
 #[tauri::command]
-pub fn get_monitor_input_source(device_name: String) -> Result<String, String> {
-    active_provider().get_monitor_input_source(device_name)
+pub async fn get_monitor_input_source(device_name: String) -> Result<String, String> {
+    run_display_task(move || active_provider().get_monitor_input_source(device_name)).await
 }
 
 #[tauri::command]
-pub fn get_monitor_ddc_caps(device_name: String) -> Result<String, String> {
-    active_provider().get_monitor_ddc_caps(device_name)
+pub async fn get_monitor_ddc_caps(device_name: String) -> Result<String, String> {
+    run_display_task(move || active_provider().get_monitor_ddc_caps(device_name)).await
 }
 
 #[tauri::command]
-pub fn set_monitor_power(device_name: String, power_on: bool) -> Result<(), String> {
-    active_provider().set_monitor_power(device_name, power_on)
+pub async fn set_monitor_power(device_name: String, power_on: bool) -> Result<(), String> {
+    run_display_task(move || active_provider().set_monitor_power(device_name, power_on)).await
 }

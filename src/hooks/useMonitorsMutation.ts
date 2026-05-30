@@ -8,7 +8,7 @@ export function useMonitorsMutation() {
     async <T>(action: () => Promise<T>): Promise<T> => {
       try {
         const result = await action();
-        await reloadMonitors();
+        void reloadMonitors();
         return result;
       } catch (e) {
         const msg = (e as Error).message ?? String(e);

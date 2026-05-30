@@ -1,4 +1,6 @@
-use tauri::WindowEvent;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::time::Duration;
+use tauri::{Manager, PhysicalPosition, Position, WindowEvent};
 
 mod cli;
 mod display_monitor;
@@ -13,12 +15,72 @@ mod winDisplays;
 pub mod winHdr;
 
 const AUTOSTART_BASE_LABEL: &str = "Start at login";
+const PARKED_WINDOW_POSITION: PhysicalPosition<i32> = PhysicalPosition {
+    x: -32000,
+    y: -32000,
+};
+static MAIN_WINDOW_OPEN: AtomicBool = AtomicBool::new(false);
+static FOCUS_OUT_TOKEN: AtomicU64 = AtomicU64::new(0);
 
 fn autostart_label(enabled: bool) -> String {
     if enabled {
         format!("{AUTOSTART_BASE_LABEL} ✓")
     } else {
         AUTOSTART_BASE_LABEL.to_string()
+    }
+}
+
+pub(crate) fn reveal_main_window(app_handle: &tauri::AppHandle) -> bool {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        FOCUS_OUT_TOKEN.fetch_add(1, Ordering::SeqCst);
+        let should_reposition = window
+            .outer_position()
+            .map(|position| {
+                position == PARKED_WINDOW_POSITION
+                    || !positioning::is_position_on_any_monitor(app_handle, position)
+            })
+            .unwrap_or(true);
+        if should_reposition {
+            let _ = window.set_position(positioning::compute_default_window_position(
+                app_handle, &window,
+            ));
+        }
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_ignore_cursor_events(false);
+        let _ = window.set_focus();
+        MAIN_WINDOW_OPEN.store(true, Ordering::SeqCst);
+        true
+    } else {
+        false
+    }
+}
+
+fn park_main_window(app_handle: &tauri::AppHandle) -> bool {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        FOCUS_OUT_TOKEN.fetch_add(1, Ordering::SeqCst);
+        let _ = window.set_ignore_cursor_events(true);
+        let _ = window.set_position(Position::Physical(PARKED_WINDOW_POSITION));
+        MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
+        true
+    } else {
+        false
+    }
+}
+
+fn toggle_main_window_for_tray_click(
+    app_handle: &tauri::AppHandle,
+    tray_position: Position,
+) -> bool {
+    if MAIN_WINDOW_OPEN.load(Ordering::SeqCst) {
+        park_main_window(app_handle)
+    } else if let Some(window) = app_handle.get_webview_window("main") {
+        let pos =
+            positioning::compute_window_position_for_tray_click(app_handle, &window, tray_position);
+        let _ = window.set_position(pos);
+        reveal_main_window(app_handle)
+    } else {
+        false
     }
 }
 
@@ -36,11 +98,10 @@ pub fn run() {
         }
     }
 
-    use crate::positioning;
     use tauri::{
         menu::{Menu, MenuItem},
         tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-        Manager, WebviewUrl, WebviewWindowBuilder,
+        WebviewUrl, WebviewWindowBuilder,
     };
     use tauri_plugin_notification::NotificationExt;
 
@@ -76,14 +137,6 @@ pub fn run() {
                 log::info!("Settings file: {}", settings_path.display());
             }
 
-            // helper to reveal main window
-            fn reveal_main_window(app_handle: &tauri::AppHandle) {
-                if let Some(window) = app_handle.get_webview_window("main") {
-                    let _ = window.unminimize();
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
             // Enable autostart by default on first run (persist marker so user choice isn't overridden)
             // Only do this in release builds to avoid registering a dev (console) binary on Windows.
             #[cfg(all(desktop, not(debug_assertions)))]
@@ -141,9 +194,11 @@ pub fn run() {
             let menu =
                 Menu::with_items(app, &[&show_item, &autostart_item, &about_item, &exit_item])?;
 
-            // Create tray icon using default app icon
+            MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
+
             let tray_builder = TrayIconBuilder::new()
                 .menu(&menu)
+                .show_menu_on_left_click(false)
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("WinDisplay");
 
@@ -191,7 +246,7 @@ pub fn run() {
                     _ => {}
                 });
 
-            let tray_builder = tray_builder.on_tray_icon_event(|tray, event| {
+            let tray_builder = tray_builder.on_tray_icon_event(move |tray, event| {
                 if let TrayIconEvent::Click {
                     button: MouseButton::Left,
                     button_state: MouseButtonState::Up,
@@ -200,16 +255,8 @@ pub fn run() {
                 } = event
                 {
                     let app = tray.app_handle();
-                    if let Some(window) = app.get_webview_window("main") {
-                        let pos = positioning::compute_window_position_for_tray_click(
-                            &app,
-                            &window,
-                            rect.position,
-                        );
-                        let _ = window.set_position(pos);
 
-                        reveal_main_window(&app);
-                    }
+                    toggle_main_window_for_tray_click(&app, rect.position);
                 }
             });
 
@@ -236,19 +283,42 @@ pub fn run() {
 
             // Keep main window hidden until tray click (config also sets visible: false)
             if let Some(window) = app.get_webview_window("main") {
-                // Hide on focus out
-                let window_for_event = window.clone();
                 let app_handle_for_event = app.handle().clone();
                 window.on_window_event(move |event| {
-                    if let WindowEvent::Focused(false) = event {
-                        if crate::settings::should_hide_ui_on_focus_out_handle(&app_handle_for_event) {
-                            let _ = window_for_event.hide();
+                    match event {
+                        WindowEvent::Focused(true) => {
+                            FOCUS_OUT_TOKEN.fetch_add(1, Ordering::SeqCst);
                         }
+                        WindowEvent::Focused(false) => {
+                            if !crate::settings::should_hide_ui_on_focus_out_handle(
+                                &app_handle_for_event,
+                            ) {
+                                return;
+                            }
+
+                            let token = FOCUS_OUT_TOKEN.fetch_add(1, Ordering::SeqCst) + 1;
+                            let app_handle = app_handle_for_event.clone();
+                            tauri::async_runtime::spawn(async move {
+                                std::thread::sleep(Duration::from_millis(300));
+                                if FOCUS_OUT_TOKEN.load(Ordering::SeqCst) == token
+                                    && MAIN_WINDOW_OPEN.load(Ordering::SeqCst)
+                                {
+                                    park_main_window(&app_handle);
+                                }
+                            });
+                        }
+                        WindowEvent::Destroyed => {
+                            MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
+                        }
+                        _ => {}
                     }
                 });
                 // Ensure the window does not appear in the taskbar
                 let _ = window.set_skip_taskbar(true);
-                let _ = window.hide();
+                let _ = window.set_ignore_cursor_events(true);
+                let _ = window.set_position(Position::Physical(PARKED_WINDOW_POSITION));
+                let _ = window.show();
+                MAIN_WINDOW_OPEN.store(false, Ordering::SeqCst);
             }
             Ok(())
         })

@@ -6,7 +6,7 @@
   bottom: 0;
   background: var(--overlay-bg);
   z-index: 9998;
-  animation: fadeIn 0.2s ease-in-out;
+  animation: fadeIn 80ms ease-in-out;
 }
 
 .dialog-overlay.closing {
@@ -44,7 +44,7 @@
   box-shadow: var(--dialog-shadow);
   border-radius: 13px;
   z-index: 9999;
-  animation: slideIn 0.2s ease-out;
+  animation: slideIn 80ms ease-out;
 }
 
 .dialog-content.closing {
