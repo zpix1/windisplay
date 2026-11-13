@@ -273,7 +273,8 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             {
                 if crate::settings::should_register_brightness_hotkeys_app(&app) {
-                    crate::hotkeys::start_hotkey_service(app.handle().clone());
+                    let (down, up) = crate::settings::brightness_hotkeys_app(&app);
+                    crate::hotkeys::start_hotkey_service(app.handle().clone(), down, up);
                 } else {
                     log::info!(
                         "Skipping brightness hotkeys startup: keyboardBrightnessShortcut is 'system'"
