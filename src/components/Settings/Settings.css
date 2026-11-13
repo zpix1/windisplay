@@ -1,3 +1,7 @@
+.settings-dialog {
+  overflow-y: auto;
+}
+
 .settings-container {
   padding: 8px;
 }
@@ -68,4 +72,42 @@
 
 .settings-section-title-note {
   color: var(--text-muted);
+}
+
+.settings-shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px;
+}
+
+.settings-shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.settings-shortcut-input {
+  width: 130px;
+  padding: 5px 8px;
+  color: var(--text-primary);
+  background: var(--header-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.settings-shortcut-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.settings-shortcuts p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
 }

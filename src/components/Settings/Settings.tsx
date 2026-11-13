@@ -183,12 +183,16 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                 </label>
               </div>
               {settings.keyboardBrightnessShortcut === "all_screens" && (
-                <div className="settings-section">
-                  <p>Click a field and press a shortcut. Defaults: F14 down, F15 up. Changes require a restart.</p>
-                  <label>Brightness down: <input aria-label="Brightness down shortcut" readOnly value={settings.brightnessDownHotkey} onKeyDown={(event) => captureShortcut(event, "brightnessDownHotkey")} /></label>
-                  <label>Brightness up: <input aria-label="Brightness up shortcut" readOnly value={settings.brightnessUpHotkey} onKeyDown={(event) => captureShortcut(event, "brightnessUpHotkey")} /></label>
+                <div className="settings-shortcuts">
+                  <label className="settings-shortcut-row">
+                    <span>Brightness down</span>
+                    <input className="settings-shortcut-input" aria-label="Brightness down shortcut" title="Click and press a shortcut" readOnly value={settings.brightnessDownHotkey} onKeyDown={(event) => captureShortcut(event, "brightnessDownHotkey")} />
+                  </label>
+                  <label className="settings-shortcut-row">
+                    <span>Brightness up</span>
+                    <input className="settings-shortcut-input" aria-label="Brightness up shortcut" title="Click and press a shortcut" readOnly value={settings.brightnessUpHotkey} onKeyDown={(event) => captureShortcut(event, "brightnessUpHotkey")} />
+                  </label>
                   {shortcutError && <p role="alert">{shortcutError}</p>}
-                  <p>Choose shortcuts not used by Windows or other apps; unmodified keys may be captured globally.</p>
                 </div>
               )}
             </div>
