@@ -10,22 +10,23 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 static START_ONCE: Once = Once::new();
-static REGISTRATION_ERRORS: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+static REGISTRATION_ERRORS: OnceLock<Mutex<Option<Vec<String>>>> = OnceLock::new();
 
-pub fn registration_errors() -> Vec<String> {
+pub fn registration_errors() -> Option<Vec<String>> {
     REGISTRATION_ERRORS
-        .get_or_init(|| Mutex::new(Vec::new()))
+        .get_or_init(|| Mutex::new(None))
         .lock()
         .map(|errors| errors.clone())
-        .unwrap_or_else(|_| vec!["Could not read shortcut registration status.".to_string()])
+        .unwrap_or_else(|_| {
+            Some(vec![
+                "Could not read shortcut registration status.".to_string()
+            ])
+        })
 }
 
 fn set_registration_errors(errors: Vec<String>) {
-    if let Ok(mut current) = REGISTRATION_ERRORS
-        .get_or_init(|| Mutex::new(Vec::new()))
-        .lock()
-    {
-        *current = errors;
+    if let Ok(mut current) = REGISTRATION_ERRORS.get_or_init(|| Mutex::new(None)).lock() {
+        *current = Some(errors);
     }
 }
 

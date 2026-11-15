@@ -57,14 +57,14 @@ pub(crate) fn reveal_main_window(app_handle: &tauri::AppHandle) -> bool {
 }
 
 #[tauri::command]
-fn brightness_hotkey_registration_errors() -> Vec<String> {
+fn brightness_hotkey_registration_errors() -> Option<Vec<String>> {
     #[cfg(target_os = "windows")]
     {
         return crate::hotkeys::registration_errors();
     }
     #[cfg(not(target_os = "windows"))]
     {
-        Vec::new()
+        Some(Vec::new())
     }
 }
 

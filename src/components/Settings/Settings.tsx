@@ -51,17 +51,29 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
     }
 
     let cancelled = false;
-    invoke<string[]>("brightness_hotkey_registration_errors")
-      .then((errors) => {
-        if (!cancelled) setRegistrationErrors(errors);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setRegistrationErrors([`Could not check shortcuts: ${error}`]);
-        }
-      });
+    let timeout: number | undefined;
+    const checkRegistration = (attempt = 0) => {
+      invoke<string[] | null>("brightness_hotkey_registration_errors")
+        .then((errors) => {
+          if (cancelled) return;
+          if (errors !== null) {
+            setRegistrationErrors(errors);
+          } else if (attempt < 50) {
+            timeout = window.setTimeout(() => checkRegistration(attempt + 1), 100);
+          } else {
+            setRegistrationErrors(["Shortcut registration is taking longer than expected."]);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setRegistrationErrors([`Could not check shortcuts: ${error}`]);
+          }
+        });
+    };
+    checkRegistration();
     return () => {
       cancelled = true;
+      if (timeout !== undefined) window.clearTimeout(timeout);
     };
   }, [loading, restartRequired, settings.keyboardBrightnessShortcut]);
 
