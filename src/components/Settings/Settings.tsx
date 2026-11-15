@@ -7,6 +7,7 @@ import {
   type ThemeMode,
 } from "../../hooks/useSettings";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { invoke } from "@tauri-apps/api/core";
 import "./Settings.css";
 import { CheckUpdatesButton } from "./CheckUpdatesButton";
 
@@ -24,6 +25,7 @@ const RESTART_REQUIRED_KEYS: Array<keyof Settings> = [
 export function Settings({ isOpen, onClose }: SettingsProps) {
   const { settings, updateSettings, loading } = useSettings();
   const [shortcutError, setShortcutError] = useState("");
+  const [registrationErrors, setRegistrationErrors] = useState<string[]>([]);
   const initialSettingsRef = useRef<Settings | null>(null);
   useEffect(() => {
     if (!loading && initialSettingsRef.current === null) {
@@ -37,6 +39,31 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
       (key) => initialSettingsRef.current![key] !== settings[key]
     );
   }, [loading, settings]);
+
+  useEffect(() => {
+    if (
+      loading ||
+      restartRequired ||
+      settings.keyboardBrightnessShortcut !== "all_screens"
+    ) {
+      setRegistrationErrors([]);
+      return;
+    }
+
+    let cancelled = false;
+    invoke<string[]>("brightness_hotkey_registration_errors")
+      .then((errors) => {
+        if (!cancelled) setRegistrationErrors(errors);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setRegistrationErrors([`Could not check shortcuts: ${error}`]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, restartRequired, settings.keyboardBrightnessShortcut]);
 
   const handleCheckboxChange = (checked: boolean) => {
     updateSettings({ showUIOnMonitorChange: checked });
@@ -193,6 +220,9 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                     <input className="settings-shortcut-input" aria-label="Brightness up shortcut" title="Click and press a shortcut" readOnly value={settings.brightnessUpHotkey} onKeyDown={(event) => captureShortcut(event, "brightnessUpHotkey")} />
                   </label>
                   {shortcutError && <p role="alert">{shortcutError}</p>}
+                  {registrationErrors.map((error) => (
+                    <p role="alert" key={error}>{error}</p>
+                  ))}
                 </div>
               )}
             </div>

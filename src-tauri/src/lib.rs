@@ -56,6 +56,18 @@ pub(crate) fn reveal_main_window(app_handle: &tauri::AppHandle) -> bool {
     }
 }
 
+#[tauri::command]
+fn brightness_hotkey_registration_errors() -> Vec<String> {
+    #[cfg(target_os = "windows")]
+    {
+        return crate::hotkeys::registration_errors();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Vec::new()
+    }
+}
+
 fn park_main_window(app_handle: &tauri::AppHandle) -> bool {
     if let Some(window) = app_handle.get_webview_window("main") {
         FOCUS_OUT_TOKEN.fetch_add(1, Ordering::SeqCst);
@@ -117,6 +129,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
+            brightness_hotkey_registration_errors,
             displays::get_all_monitors,
             displays::set_monitor_resolution,
             displays::set_monitor_orientation,

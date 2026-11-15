@@ -1,5 +1,6 @@
 .settings-dialog {
   overflow-y: auto;
+  max-height: 90vh;
 }
 
 .settings-container {

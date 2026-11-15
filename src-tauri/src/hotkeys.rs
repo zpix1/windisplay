@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Once;
+use std::sync::{Mutex, Once, OnceLock};
 use std::time::Instant;
 
 use global_hotkey::{hotkey::HotKey, GlobalHotKeyManager};
@@ -10,6 +10,24 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 static START_ONCE: Once = Once::new();
+static REGISTRATION_ERRORS: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+
+pub fn registration_errors() -> Vec<String> {
+    REGISTRATION_ERRORS
+        .get_or_init(|| Mutex::new(Vec::new()))
+        .lock()
+        .map(|errors| errors.clone())
+        .unwrap_or_else(|_| vec!["Could not read shortcut registration status.".to_string()])
+}
+
+fn set_registration_errors(errors: Vec<String>) {
+    if let Ok(mut current) = REGISTRATION_ERRORS
+        .get_or_init(|| Mutex::new(Vec::new()))
+        .lock()
+    {
+        *current = errors;
+    }
+}
 
 pub fn start_hotkey_service(app_handle: AppHandle, down: String, up: String) {
     START_ONCE.call_once(|| {
@@ -20,27 +38,36 @@ pub fn start_hotkey_service(app_handle: AppHandle, down: String, up: String) {
                 Ok(m) => m,
                 Err(e) => {
                     log::error!("Failed to create GlobalHotKeyManager: {e}");
+                    set_registration_errors(vec![format!(
+                        "Could not start the shortcut service: {e}"
+                    )]);
                     return;
                 }
             };
 
             // Register configured shortcuts and map ids to brightness deltas.
             let mut id_to_delta: HashMap<u32, i32> = HashMap::new();
+            let mut registration_errors = Vec::new();
             for (shortcut, delta) in [(down, -5), (up, 5)] {
                 let hk: HotKey = match shortcut.parse() {
                     Ok(hk) => hk,
                     Err(e) => {
                         log::warn!("Invalid brightness shortcut {shortcut}: {e}");
+                        registration_errors.push(format!("Invalid shortcut {shortcut}: {e}"));
                         continue;
                     }
                 };
                 if let Err(e) = manager.register(hk) {
                     log::warn!("Failed to register hotkey for {shortcut}: {e}");
+                    registration_errors.push(format!(
+                        "Could not register {shortcut}. It may be reserved or already in use: {e}"
+                    ));
                 } else {
                     id_to_delta.insert(hk.id(), delta);
                     log::info!("Registered hotkey for {shortcut} (id={})", hk.id());
                 }
             }
+            set_registration_errors(registration_errors);
 
             let id_to_delta_listener = id_to_delta.clone();
             let app_for_events = app_handle.clone();

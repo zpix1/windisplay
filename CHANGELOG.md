@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.22] - 2026-11-15
+
+- Add configurable global brightness shortcuts, with F14/F15 as defaults
+- Report shortcuts that Windows cannot register in Settings
+- Improve Settings dialog scrolling and layout
+
 ## [0.3.21] - 2026-06-09
 
 - [#18](https://github.com/zpix1/windisplay/pull/18) Improve tray responsiveness, expose an option to hide controls when the window loses focus, and disable brightness controls while HDR is enabled by @Cesarsk
