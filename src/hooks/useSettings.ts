@@ -12,6 +12,8 @@ export type ThemeMode = "light" | "dark" | "system";
 export type Settings = {
   showUIOnMonitorChange: boolean;
   keyboardBrightnessShortcut: KeyboardBrightnessShortcut;
+  brightnessDownHotkey: string;
+  brightnessUpHotkey: string;
   showStartupNotification: boolean;
   shouldHideUIOnFocusOut: boolean;
   theme: ThemeMode;
@@ -20,6 +22,8 @@ export type Settings = {
 const DEFAULT_SETTINGS: Settings = {
   showUIOnMonitorChange: false,
   keyboardBrightnessShortcut: "system",
+  brightnessDownHotkey: "F14",
+  brightnessUpHotkey: "F15",
   showStartupNotification: true,
   shouldHideUIOnFocusOut: true,
   theme: "system",

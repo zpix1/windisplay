@@ -1,5 +1,5 @@
 import { Dialog } from "../ui/Dialog/Dialog";
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import {
   useSettings,
   type KeyboardBrightnessShortcut,
@@ -7,6 +7,7 @@ import {
   type ThemeMode,
 } from "../../hooks/useSettings";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { invoke } from "@tauri-apps/api/core";
 import "./Settings.css";
 import { CheckUpdatesButton } from "./CheckUpdatesButton";
 
@@ -17,10 +18,14 @@ type SettingsProps = {
 
 const RESTART_REQUIRED_KEYS: Array<keyof Settings> = [
   "keyboardBrightnessShortcut",
+  "brightnessDownHotkey",
+  "brightnessUpHotkey",
 ];
 
 export function Settings({ isOpen, onClose }: SettingsProps) {
   const { settings, updateSettings, loading } = useSettings();
+  const [shortcutError, setShortcutError] = useState("");
+  const [registrationErrors, setRegistrationErrors] = useState<string[]>([]);
   const initialSettingsRef = useRef<Settings | null>(null);
   useEffect(() => {
     if (!loading && initialSettingsRef.current === null) {
@@ -34,6 +39,43 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
       (key) => initialSettingsRef.current![key] !== settings[key]
     );
   }, [loading, settings]);
+
+  useEffect(() => {
+    if (
+      loading ||
+      restartRequired ||
+      settings.keyboardBrightnessShortcut !== "all_screens"
+    ) {
+      setRegistrationErrors([]);
+      return;
+    }
+
+    let cancelled = false;
+    let timeout: number | undefined;
+    const checkRegistration = (attempt = 0) => {
+      invoke<string[] | null>("brightness_hotkey_registration_errors")
+        .then((errors) => {
+          if (cancelled) return;
+          if (errors !== null) {
+            setRegistrationErrors(errors);
+          } else if (attempt < 50) {
+            timeout = window.setTimeout(() => checkRegistration(attempt + 1), 100);
+          } else {
+            setRegistrationErrors(["Shortcut registration is taking longer than expected."]);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            setRegistrationErrors([`Could not check shortcuts: ${error}`]);
+          }
+        });
+    };
+    checkRegistration();
+    return () => {
+      cancelled = true;
+      if (timeout !== undefined) window.clearTimeout(timeout);
+    };
+  }, [loading, restartRequired, settings.keyboardBrightnessShortcut]);
 
   const handleCheckboxChange = (checked: boolean) => {
     updateSettings({ showUIOnMonitorChange: checked });
@@ -49,6 +91,33 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
 
   const handleThemeChange = (value: ThemeMode) => {
     updateSettings({ theme: value });
+  };
+
+  const captureShortcut = (
+    event: KeyboardEvent<HTMLInputElement>,
+    direction: "brightnessDownHotkey" | "brightnessUpHotkey"
+  ) => {
+    if (event.key === "Tab") return;
+    event.preventDefault();
+    if (/^(Control|Shift|Alt|Meta)(Left|Right)$/.test(event.code)) return;
+    if (!/^(F([1-9]|1[0-9]|2[0-4])|Key[A-Z]|Digit[0-9]|Arrow(Up|Down|Left|Right))$/.test(event.code)) {
+      setShortcutError("Use a letter, number, arrow, or F1–F24 key, with optional modifiers.");
+      return;
+    }
+    const shortcut = [
+      event.ctrlKey && "Ctrl",
+      event.altKey && "Alt",
+      event.shiftKey && "Shift",
+      event.metaKey && "Super",
+      event.code,
+    ].filter(Boolean).join("+");
+    const other = direction === "brightnessDownHotkey" ? settings.brightnessUpHotkey : settings.brightnessDownHotkey;
+    if (shortcut.toLowerCase() === other.toLowerCase()) {
+      setShortcutError("Brightness up and down must use different shortcuts.");
+      return;
+    }
+    setShortcutError("");
+    void updateSettings({ [direction]: shortcut });
   };
 
   return (
@@ -101,7 +170,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                 Brightness Keys Affect:{" "}
                 <span
                   className="settings-section-title-note"
-                  title={`We use F14/F15 for brightness adjustment.\nYou can bind these keys to the brightness up/down keys in your keyboard settings.\nPlease note that brighness Windows API is very slow, so it might feel laggy.`}
+                  title="Choose shortcuts below and map your keyboard to send them. Monitor brightness changes may be slow."
                 >
                   (?)
                 </span>
@@ -152,6 +221,22 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                   </span>
                 </label>
               </div>
+              {settings.keyboardBrightnessShortcut === "all_screens" && (
+                <div className="settings-shortcuts">
+                  <label className="settings-shortcut-row">
+                    <span>Brightness down</span>
+                    <input className="settings-shortcut-input" aria-label="Brightness down shortcut" title="Click and press a shortcut" readOnly value={settings.brightnessDownHotkey} onKeyDown={(event) => captureShortcut(event, "brightnessDownHotkey")} />
+                  </label>
+                  <label className="settings-shortcut-row">
+                    <span>Brightness up</span>
+                    <input className="settings-shortcut-input" aria-label="Brightness up shortcut" title="Click and press a shortcut" readOnly value={settings.brightnessUpHotkey} onKeyDown={(event) => captureShortcut(event, "brightnessUpHotkey")} />
+                  </label>
+                  {shortcutError && <p role="alert">{shortcutError}</p>}
+                  {registrationErrors.map((error) => (
+                    <p role="alert" key={error}>{error}</p>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="settings-section">
               <label className="settings-checkbox-label">
